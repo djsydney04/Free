@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, StyleSheet, Dimensions } from 'react-native';
-import MapView, { Marker, Circle, PROVIDER_GOOGLE } from 'react-native-maps';
+import { View, StyleSheet, Dimensions, Platform } from 'react-native';
+import MapView, { Marker, Circle, PROVIDER_DEFAULT } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { supabase } from '../services/supabase';
 import type { FreeEvent } from '../types';
@@ -79,7 +79,7 @@ export default function MapScreen({ navigation }: MainTabScreenProps<'Map'>) {
       <MapView
         ref={mapRef}
         style={styles.map}
-        provider={PROVIDER_GOOGLE}
+        provider={PROVIDER_DEFAULT}
         initialRegion={INITIAL_REGION}
         showsUserLocation
         showsMyLocationButton
@@ -90,7 +90,7 @@ export default function MapScreen({ navigation }: MainTabScreenProps<'Map'>) {
               latitude: userLocation.coords.latitude,
               longitude: userLocation.coords.longitude,
             }}
-            radius={searchRadius * 1000} // Convert km to meters
+            radius={searchRadius * 1000}
             strokeWidth={1}
             strokeColor="#6366f1"
             fillColor="rgba(99, 102, 241, 0.1)"

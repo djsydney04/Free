@@ -60,11 +60,11 @@ export default function LoginScreen({ navigation }: RootStackScreenProps<'Login'
           value={password}
           onChangeText={setPassword}
           secureTextEntry
-          textContentType="none"
+          textContentType="oneTimeCode"
           autoComplete="off"
           autoCapitalize="none"
           autoCorrect={false}
-          keyboardType="ascii-capable"
+          keyboardType="default"
           returnKeyType="done"
         />
 

@@ -6,18 +6,20 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { Session } from '@supabase/supabase-js';
-import { supabase } from './src/services/supabase';
+
+// Import supabase client
+import { supabase } from './services/supabase';
 
 // Import screens
-import LoginScreen from './src/screens/LoginScreen';
-import SignUpScreen from './src/screens/SignUpScreen';
-import HomeScreen from './src/screens/HomeScreen';
-import MapScreen from './src/screens/MapScreen';
-import CreateEventScreen from './src/screens/CreateEventScreen';
-import ProfileScreen from './src/screens/ProfileScreen';
+import LoginScreen from './screens/LoginScreen';
+import SignUpScreen from './screens/SignUpScreen';
+import HomeScreen from './screens/HomeScreen';
+import MapScreen from './screens/MapScreen';
+import CreateEventScreen from './screens/CreateEventScreen';
+import ProfileScreen from './screens/ProfileScreen';
 
 // Navigation types
-import { RootStackParamList, MainTabParamList } from './src/types/navigation';
+import { RootStackParamList, MainTabParamList } from './types/navigation';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -84,7 +86,7 @@ function TabNavigator() {
   );
 }
 
-export default function App() {
+const AppComponent = () => {
   const [session, setSession] = useState<Session | null>(null);
 
   useEffect(() => {
@@ -118,4 +120,6 @@ export default function App() {
       <StatusBar style="auto" />
     </SafeAreaProvider>
   );
-}
+};
+
+export default AppComponent;

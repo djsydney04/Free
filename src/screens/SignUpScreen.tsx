@@ -84,11 +84,11 @@ export default function SignUpScreen({ navigation }: RootStackScreenProps<'SignU
           value={password}
           onChangeText={setPassword}
           secureTextEntry
-          textContentType="none"
+          textContentType="oneTimeCode"
           autoComplete="off"
           autoCapitalize="none"
           autoCorrect={false}
-          keyboardType="ascii-capable"
+          keyboardType="default"
           returnKeyType="done"
         />
 
@@ -98,11 +98,11 @@ export default function SignUpScreen({ navigation }: RootStackScreenProps<'SignU
           value={confirmPassword}
           onChangeText={setConfirmPassword}
           secureTextEntry
-          textContentType="none"
+          textContentType="oneTimeCode"
           autoComplete="off"
           autoCapitalize="none"
           autoCorrect={false}
-          keyboardType="ascii-capable"
+          keyboardType="default"
           returnKeyType="done"
         />
 
