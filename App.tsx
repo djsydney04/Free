@@ -13,7 +13,8 @@ import { supabase } from './src/services/supabase';
 // Import screens
 import LoginScreen from './src/screens/LoginScreen';
 import SignUpScreen from './src/screens/SignUpScreen';
-import HomeScreen from './src/screens/HomeScreen';
+import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
+import FeedScreen from './src/screens/FeedScreen';
 import MapScreen from './src/screens/MapScreen';
 import CreateEventScreen from './src/screens/CreateEventScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
@@ -32,8 +33,8 @@ function TabNavigator() {
           let iconName;
 
           switch (route.name) {
-            case 'Home':
-              iconName = focused ? 'home' : 'home-outline';
+            case 'Feed':
+              iconName = focused ? 'list' : 'list-outline';
               break;
             case 'Map':
               iconName = focused ? 'map' : 'map-outline';
@@ -63,9 +64,9 @@ function TabNavigator() {
       })}
     >
       <Tab.Screen 
-        name="Home" 
-        component={HomeScreen}
-        options={{ title: 'Free Events' }}
+        name="Feed" 
+        component={FeedScreen}
+        options={{ title: 'Event Feed' }}
       />
       <Tab.Screen 
         name="Map" 
@@ -110,6 +111,7 @@ const AppComponent = () => {
             <>
               <Stack.Screen name="Login" component={LoginScreen} />
               <Stack.Screen name="SignUp" component={SignUpScreen} />
+              <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
             </>
           ) : (
             // Main App Stack

@@ -13,7 +13,8 @@ import { supabase } from './services/supabase';
 // Import screens
 import LoginScreen from './screens/LoginScreen';
 import SignUpScreen from './screens/SignUpScreen';
-import HomeScreen from './screens/HomeScreen';
+import ForgotPasswordScreen from './screens/ForgotPasswordScreen';
+import FeedScreen from './screens/FeedScreen';
 import MapScreen from './screens/MapScreen';
 import CreateEventScreen from './screens/CreateEventScreen';
 import ProfileScreen from './screens/ProfileScreen';
@@ -32,8 +33,8 @@ function TabNavigator() {
           let iconName: keyof typeof Ionicons.glyphMap;
 
           switch (route.name) {
-            case 'Home':
-              iconName = focused ? 'home' : 'home-outline';
+            case 'Feed':
+              iconName = focused ? 'list' : 'list-outline';
               break;
             case 'Map':
               iconName = focused ? 'map' : 'map-outline';
@@ -63,9 +64,9 @@ function TabNavigator() {
       })}
     >
       <Tab.Screen 
-        name="Home" 
-        component={HomeScreen}
-        options={{ title: 'Free Events' }}
+        name="Feed" 
+        component={FeedScreen}
+        options={{ title: 'Event Feed' }}
       />
       <Tab.Screen 
         name="Map" 
@@ -110,6 +111,7 @@ const AppComponent = () => {
             <>
               <Stack.Screen name="Login" component={LoginScreen} />
               <Stack.Screen name="SignUp" component={SignUpScreen} />
+              <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
             </>
           ) : (
             // Main App Stack

@@ -4,10 +4,11 @@ export type RootStackParamList = {
   Login: undefined;
   SignUp: undefined;
   MainApp: undefined;
+  ForgotPassword: undefined;
 };
 
 export type MainTabParamList = {
-  Home: undefined;
+  Feed: undefined;
   Map: undefined;
   Create: undefined;
   Profile: undefined;

@@ -8,6 +8,8 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import { supabase } from '../services/supabase';
 import type { RootStackScreenProps } from '../types/navigation';
@@ -18,24 +20,70 @@ export default function SignUpScreen({ navigation }: RootStackScreenProps<'SignU
   const [confirmPassword, setConfirmPassword] = useState('');
   const [university, setUniversity] = useState('');
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+
+  const validateInputs = () => {
+    setErrorMessage('');
+    
+    if (!email.trim()) {
+      setErrorMessage('Please enter your email');
+      return false;
+    }
+    
+    if (!password.trim()) {
+      setErrorMessage('Please enter a password');
+      return false;
+    }
+    
+    if (password.length < 6) {
+      setErrorMessage('Password must be at least 6 characters');
+      return false;
+    }
+    
+    if (password !== confirmPassword) {
+      setErrorMessage('Passwords do not match');
+      return false;
+    }
+    
+    if (!university.trim()) {
+      setErrorMessage('Please enter your university');
+      return false;
+    }
+    
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      setErrorMessage('Please enter a valid email address');
+      return false;
+    }
+    
+    return true;
+  };
 
   const handleSignUp = async () => {
     if (loading) return;
-    if (password !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
-      return;
-    }
+    
+    if (!validateInputs()) return;
 
     setLoading(true);
     try {
       // First sign up the user
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email,
+        email: email.trim(),
         password,
       });
 
-      if (signUpError) throw signUpError;
-      if (!signUpData.user) throw new Error('No user data returned');
+      if (signUpError) {
+        if (signUpError.message.includes('already registered')) {
+          throw new Error('This email is already registered. Please log in instead.');
+        } else {
+          throw signUpError;
+        }
+      }
+      
+      if (!signUpData.user) {
+        throw new Error('Sign up failed. Please try again later.');
+      }
 
       // Create user profile with university info
       const { error: profileError } = await supabase
@@ -43,7 +91,7 @@ export default function SignUpScreen({ navigation }: RootStackScreenProps<'SignU
         .insert([
           {
             user_id: signUpData.user.id,
-            university,
+            university: university.trim(),
             created_at: new Date().toISOString(),
           },
         ]);
@@ -51,12 +99,13 @@ export default function SignUpScreen({ navigation }: RootStackScreenProps<'SignU
       if (profileError) throw profileError;
 
       Alert.alert(
-        'Success',
-        'Please check your email for verification instructions.',
-        [{ text: 'OK', onPress: () => navigation.navigate('Login') }]
+        'Account Created',
+        'Your account was created successfully! Please check your email for verification instructions.',
+        [{ text: 'Log In', onPress: () => navigation.navigate('Login') }]
       );
     } catch (error: any) {
-      Alert.alert('Error', error.message);
+      setErrorMessage(error.message);
+      console.error('Sign up error:', error.message);
     } finally {
       setLoading(false);
     }
@@ -67,74 +116,101 @@ export default function SignUpScreen({ navigation }: RootStackScreenProps<'SignU
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
-      <View style={styles.content}>
-        <Text style={styles.title}>Create Account</Text>
-        <Text style={styles.subtitle}>Join the Community</Text>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={styles.content}>
+          <Text style={styles.title}>Create Account</Text>
+          <Text style={styles.subtitle}>Join the Community</Text>
+          
+          {errorMessage ? (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{errorMessage}</Text>
+            </View>
+          ) : null}
 
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          keyboardType="email-address"
-        />
+          <TextInput
+            style={[styles.input, errorMessage && !email.trim() && styles.inputError]}
+            placeholder="Email"
+            value={email}
+            onChangeText={(text) => {
+              setEmail(text);
+              setErrorMessage('');
+            }}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            editable={!loading}
+          />
 
-        <TextInput
-          style={styles.input}
-          placeholder="Password"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          textContentType="oneTimeCode"
-          autoComplete="off"
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="default"
-          returnKeyType="done"
-        />
+          <TextInput
+            style={[styles.input, errorMessage && (!password.trim() || password.length < 6) && styles.inputError]}
+            placeholder="Password (min 6 characters)"
+            value={password}
+            onChangeText={(text) => {
+              setPassword(text);
+              setErrorMessage('');
+            }}
+            secureTextEntry
+            textContentType="oneTimeCode"
+            autoComplete="off"
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="default"
+            returnKeyType="done"
+            editable={!loading}
+          />
 
-        <TextInput
-          style={styles.input}
-          placeholder="Confirm Password"
-          value={confirmPassword}
-          onChangeText={setConfirmPassword}
-          secureTextEntry
-          textContentType="oneTimeCode"
-          autoComplete="off"
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="default"
-          returnKeyType="done"
-        />
+          <TextInput
+            style={[styles.input, errorMessage && password !== confirmPassword && styles.inputError]}
+            placeholder="Confirm Password"
+            value={confirmPassword}
+            onChangeText={(text) => {
+              setConfirmPassword(text);
+              setErrorMessage('');
+            }}
+            secureTextEntry
+            textContentType="oneTimeCode"
+            autoComplete="off"
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="default"
+            returnKeyType="done"
+            editable={!loading}
+          />
 
-        <TextInput
-          style={styles.input}
-          placeholder="University"
-          value={university}
-          onChangeText={setUniversity}
-          autoCapitalize="words"
-        />
+          <TextInput
+            style={[styles.input, errorMessage && !university.trim() && styles.inputError]}
+            placeholder="University"
+            value={university}
+            onChangeText={(text) => {
+              setUniversity(text);
+              setErrorMessage('');
+            }}
+            autoCapitalize="words"
+            editable={!loading}
+          />
 
-        <TouchableOpacity
-          style={[styles.button, loading && styles.buttonDisabled]}
-          onPress={handleSignUp}
-          disabled={loading}
-        >
-          <Text style={styles.buttonText}>
-            {loading ? 'Creating Account...' : 'Sign Up'}
-          </Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.button, loading && styles.buttonDisabled]}
+            onPress={handleSignUp}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>Create Account</Text>
+            )}
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.linkButton}
-          onPress={() => navigation.navigate('Login')}
-        >
-          <Text style={styles.linkText}>
-            Already have an account? Log in here
-          </Text>
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity
+            style={styles.linkButton}
+            onPress={() => navigation.navigate('Login')}
+            disabled={loading}
+          >
+            <Text style={styles.linkText}>
+              Already have an account? Log in here
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -144,10 +220,14 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
-  content: {
-    flex: 1,
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: 'center',
+  },
+  content: {
     padding: 20,
+    paddingTop: 10,
+    paddingBottom: 30,
   },
   title: {
     fontSize: 32,
@@ -162,12 +242,31 @@ const styles = StyleSheet.create({
     marginBottom: 30,
     color: '#666',
   },
+  errorContainer: {
+    backgroundColor: '#FFEBEE',
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: '#FFCDD2',
+  },
+  errorText: {
+    color: '#D32F2F',
+    fontSize: 14,
+    textAlign: 'center',
+  },
   input: {
     backgroundColor: '#f3f4f6',
     padding: 15,
     borderRadius: 10,
     marginBottom: 15,
     fontSize: 16,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  inputError: {
+    borderColor: '#D32F2F',
+    backgroundColor: '#FFEBEE',
   },
   button: {
     backgroundColor: '#6366f1',
