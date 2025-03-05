@@ -5,6 +5,7 @@ import * as Location from 'expo-location';
 import { supabase } from '../services/supabase';
 import type { FreeEvent } from '../types';
 import type { MainTabScreenProps } from '../types/navigation';
+import { useFocusEffect } from '@react-navigation/native';
 
 const INITIAL_REGION = {
   latitude: 37.78825,
@@ -73,6 +74,19 @@ export default function MapScreen({ navigation }: MainTabScreenProps<'Map'>) {
       fetchEvents();
     }
   }, [userLocation, searchRadius]);
+
+  // Add useFocusEffect to refresh events when the screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log("MapScreen focused - refreshing events");
+      if (userLocation) {
+        fetchEvents();
+      }
+      return () => {
+        // cleanup if needed
+      };
+    }, [userLocation, searchRadius])
+  );
 
   return (
     <View style={styles.container}>

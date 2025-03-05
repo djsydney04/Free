@@ -8,18 +8,18 @@ import { Ionicons } from '@expo/vector-icons';
 import { Session } from '@supabase/supabase-js';
 
 // Import supabase client
-import { supabase } from './services/supabase';
+import { supabase } from './src/services/supabase';
 
 // Import screens
-import LoginScreen from './screens/LoginScreen';
-import SignUpScreen from './screens/SignUpScreen';
-import HomeScreen from './screens/HomeScreen';
-import MapScreen from './screens/MapScreen';
-import CreateEventScreen from './screens/CreateEventScreen';
-import ProfileScreen from './screens/ProfileScreen';
+import LoginScreen from './src/screens/LoginScreen';
+import SignUpScreen from './src/screens/SignUpScreen';
+import HomeScreen from './src/screens/HomeScreen';
+import MapScreen from './src/screens/MapScreen';
+import CreateEventScreen from './src/screens/CreateEventScreen';
+import ProfileScreen from './src/screens/ProfileScreen';
 
 // Navigation types
-import { RootStackParamList, MainTabParamList } from './types/navigation';
+import { RootStackParamList, MainTabParamList } from './src/types/navigation';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -29,7 +29,7 @@ function TabNavigator() {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         tabBarIcon: ({ focused, color, size }) => {
-          let iconName: keyof typeof Ionicons.glyphMap;
+          let iconName;
 
           switch (route.name) {
             case 'Home':
@@ -48,7 +48,7 @@ function TabNavigator() {
               iconName = 'help-outline';
           }
 
-          return <Ionicons name={iconName} size={size} color={color} />;
+          return <Ionicons name={iconName as any} size={size} color={color} />;
         },
         tabBarActiveTintColor: '#6366f1',
         tabBarInactiveTintColor: 'gray',

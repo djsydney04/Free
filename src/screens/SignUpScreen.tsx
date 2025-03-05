@@ -28,19 +28,21 @@ export default function SignUpScreen({ navigation }: RootStackScreenProps<'SignU
 
     setLoading(true);
     try {
-      const { error: signUpError } = await supabase.auth.signUp({
+      // First sign up the user
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
       });
 
       if (signUpError) throw signUpError;
+      if (!signUpData.user) throw new Error('No user data returned');
 
       // Create user profile with university info
       const { error: profileError } = await supabase
         .from('profiles')
         .insert([
           {
-            user_id: (await supabase.auth.getUser()).data.user?.id,
+            user_id: signUpData.user.id,
             university,
             created_at: new Date().toISOString(),
           },
@@ -190,4 +192,4 @@ const styles = StyleSheet.create({
     color: '#6366f1',
     fontSize: 16,
   },
-}); 
+});

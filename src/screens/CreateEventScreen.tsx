@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,67 +11,70 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
+import * as FileSystem from 'expo-file-system';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { supabase } from '../services/supabase';
-import type { MainTabScreenProps } from '../types/navigation';
+import { supabaseAnonKey } from '../services/supabase';
+import type { MainTabScreenProps, RootStackParamList } from '../types/navigation';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 const CATEGORIES = ['FOOD', 'CONCERT', 'SPORTS', 'ACADEMIC', 'OTHER'] as const;
 
-export default function CreateEventScreen({ navigation }: MainTabScreenProps<'Create'>) {
+export default function CreateEventScreen({ navigation: tabNavigation }: MainTabScreenProps<'Create'>) {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState<typeof CATEGORIES[number]>('OTHER');
+  
+  // Set default date to now
   const [startDate, setStartDate] = useState(new Date());
-  const [images, setImages] = useState<string[]>([]);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  
   const [loading, setLoading] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [location, setLocation] = useState<{
     latitude: number;
     longitude: number;
     address?: string;
   } | null>(null);
 
-  const pickImage = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Sorry, we need camera roll permissions to upload images!');
-      return;
+  // Add auth state check on component mount
+  useEffect(() => {
+    checkAuthState();
+  }, []);
+
+  const checkAuthState = async () => {
+    try {
+      const { data: { user }, error } = await supabase.auth.getUser();
+      console.log('Auth state check:', { 
+        isAuthenticated: !!user, 
+        userId: user?.id,
+        error: error?.message
+      });
+    } catch (error) {
+      console.error('Auth check error:', error);
     }
+  };
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [16, 9],
-      quality: 0.8,
-    });
-
-    if (!result.canceled) {
-      const uri = result.assets[0].uri;
-      // Upload image to Supabase Storage
-      try {
-        const fileName = uri.split('/').pop();
-        const fileExt = fileName?.split('.').pop();
-        const filePath = `${Date.now()}.${fileExt}`;
-
-        const formData = new FormData();
-        formData.append('file', {
-          uri,
-          name: fileName,
-          type: `image/${fileExt}`,
-        } as any);
-
-        const { data, error } = await supabase.storage
-          .from('event-images')
-          .upload(filePath, formData);
-
-        if (error) throw error;
-
-        const { data: publicUrl } = supabase.storage
-          .from('event-images')
-          .getPublicUrl(filePath);
-
-        setImages([...images, publicUrl.publicUrl]);
-      } catch (error: any) {
-        Alert.alert('Error uploading image', error.message);
-      }
+  // Completely disabled image upload functionality
+  const pickImage = async () => {
+    if (uploadingImage) return;
+    
+    try {
+      setUploadingImage(true);
+      
+      // Show user a message that image uploads are disabled
+      Alert.alert(
+        'Feature Temporarily Disabled',
+        'Image uploads are temporarily disabled. Your event will be created without an image.',
+        [{ text: 'OK' }]
+      );
+      
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      setUploadingImage(false);
     }
   };
 
@@ -106,35 +109,68 @@ export default function CreateEventScreen({ navigation }: MainTabScreenProps<'Cr
     }
   };
 
+  const onDateChange = (event: any, selectedDate?: Date) => {
+    setShowDatePicker(Platform.OS === 'ios');
+    if (selectedDate) {
+      setStartDate(selectedDate);
+    }
+  };
+
   const handleSubmit = async () => {
-    if (!title || !description || !location) {
+    if (!title || !description || !location || !category) {
       Alert.alert('Error', 'Please fill in all required fields');
       return;
     }
 
     setLoading(true);
     try {
-      const user = await supabase.auth.getUser();
-      if (!user.data.user) throw new Error('Not authenticated');
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError) throw userError;
+      if (!userData.user) throw new Error('Not authenticated');
 
-      const { error } = await supabase.from('events').insert([
-        {
-          title,
-          description,
-          category,
-          location,
-          start_date: startDate.toISOString(),
-          created_by: user.data.user.id,
-          images,
-        },
-      ]);
+      // Get user's university
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('university')
+        .eq('user_id', userData.user.id)
+        .single();
 
-      if (error) throw error;
+      if (profileError) throw profileError;
+
+      // Create the event without images
+      const { data: eventData, error: eventError } = await supabase
+        .from('events')
+        .insert([
+          {
+            title,
+            description,
+            category,
+            location,
+            start_date: startDate.toISOString(),
+            created_by: userData.user.id,
+            // Don't include images field at all
+            university: profileData.university,
+          },
+        ])
+        .select()
+        .single();
+
+      if (eventError) throw eventError;
+
+      // Clear form fields
+      setTitle('');
+      setDescription('');
+      setCategory('OTHER');
+      setStartDate(new Date());
+      setLocation(null);
 
       Alert.alert('Success', 'Event created successfully!');
-      navigation.goBack();
+      
+      // Navigate to Home tab instead of just going back
+      tabNavigation.navigate('Home');
     } catch (error: any) {
-      Alert.alert('Error creating event', error.message);
+      console.error('Error creating event:', error);
+      Alert.alert('Error', `Failed to create event: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -199,13 +235,37 @@ export default function CreateEventScreen({ navigation }: MainTabScreenProps<'Cr
           <Text style={styles.locationText}>{location.address}</Text>
         )}
 
-        <TouchableOpacity style={styles.imageButton} onPress={pickImage}>
-          <Text style={styles.imageButtonText}>
-            {images.length > 0
-              ? `Add More Images (${images.length})`
-              : 'Add Images'}
+        <TouchableOpacity 
+          style={[
+            styles.imageButton, 
+            { backgroundColor: '#e0e0e0' }
+          ]} 
+          onPress={pickImage}
+        >
+          <Text style={[styles.imageButtonText, { color: '#757575' }]}>
+            Image Uploads Temporarily Disabled
           </Text>
         </TouchableOpacity>
+
+        <View style={styles.dateContainer}>
+          <Text style={styles.secondaryLabel}>Event Date (optional - defaults to now)</Text>
+          <TouchableOpacity 
+            style={styles.dateButton}
+            onPress={() => setShowDatePicker(true)}
+          >
+            <Text style={styles.dateButtonText}>
+              Change Date: {startDate.toLocaleDateString()}
+            </Text>
+          </TouchableOpacity>
+          {showDatePicker && (
+            <DateTimePicker
+              value={startDate}
+              mode="date"
+              display="default"
+              onChange={onDateChange}
+            />
+          )}
+        </View>
 
         <TouchableOpacity
           style={[styles.submitButton, loading && styles.submitButtonDisabled]}
@@ -246,14 +306,41 @@ const styles = StyleSheet.create({
     height: 100,
     textAlignVertical: 'top',
   },
-  categoryContainer: {
+  dateContainer: {
     marginBottom: 20,
+    marginTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+    paddingTop: 15,
   },
   label: {
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 10,
     color: '#4b5563',
+  },
+  secondaryLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: 10,
+    color: '#6b7280',
+  },
+  dateButton: {
+    backgroundColor: '#f3f4f6',
+    padding: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  dateButtonText: {
+    fontSize: 14,
+    color: '#6b7280',
+    fontWeight: '500',
+  },
+  categoryContainer: {
+    marginBottom: 20,
   },
   categoryButton: {
     paddingHorizontal: 20,
