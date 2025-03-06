@@ -231,10 +231,6 @@ export default function MapScreen({ navigation }: MainTabScreenProps<'Map'>) {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
       
-      <View style={styles.titleContainer}>
-        <Text style={styles.title}>Events</Text>
-      </View>
-      
       <View style={styles.mapContainer}>
         <MapView
           ref={mapRef}
@@ -310,21 +306,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
-  },
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#e5e5ea',
-  },
-  title: {
-    fontSize: 34,
-    fontWeight: '700',
-    color: '#000000',
   },
   mapContainer: {
     flex: 1,
@@ -483,7 +464,7 @@ const styles = StyleSheet.create({
   recenterButton: {
     position: 'absolute',
     bottom: 40, // Moved down
-    right: 16,
+    right: 20, // Adjusted for better alignment
     backgroundColor: '#ffffff',
     width: 44,
     height: 44,

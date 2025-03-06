@@ -487,6 +487,9 @@ export default function CreateEventScreen({ navigation: tabNavigation }: MainTab
 
   return (
     <SafeAreaView style={styles.container}>
+      <View style={styles.titleContainer}>
+        <Text style={styles.screenTitle}>Create</Text>
+      </View>
       <KeyboardAvoidingView 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.container}
@@ -750,7 +753,7 @@ export default function CreateEventScreen({ navigation: tabNavigation }: MainTab
           {/* Create Button */}
           <TouchableOpacity
             style={[
-              styles.createButton,
+              styles.submitButton,
               (!title || !category || !location) && styles.disabledButton
             ]}
             onPress={handleSubmit}
@@ -759,7 +762,7 @@ export default function CreateEventScreen({ navigation: tabNavigation }: MainTab
             accessibilityHint="Double tap to publish your event"
             accessibilityState={{ disabled: !title || !category || !location }}
           >
-            <Text style={styles.createButtonText}>Create Event</Text>
+            <Text style={styles.submitButtonText}>Create Event</Text>
           </TouchableOpacity>
         </ScrollView>
         
@@ -780,10 +783,13 @@ export default function CreateEventScreen({ navigation: tabNavigation }: MainTab
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f2f2f7', // iOS system background color
+    backgroundColor: '#ffffff',
   },
   scrollView: {
     flex: 1,
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 16,
+    paddingTop: 16,
   },
   imagePicker: {
     height: 200,
@@ -817,27 +823,27 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   formGroup: {
-    marginBottom: 24,
-    paddingHorizontal: 16,
+    marginBottom: 20,
   },
   label: {
     fontSize: 17,
     fontWeight: '600',
-    color: '#000',
+    color: '#1f2937',
     marginBottom: 8,
   },
   input: {
-    height: 44,
-    backgroundColor: '#ffffff',
-    borderRadius: 10,
-    paddingHorizontal: 12,
+    padding: 16,
     fontSize: 17,
     color: '#000',
+    backgroundColor: '#ffffff',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 1,
-    elevation: 1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   textArea: {
     height: 120,
@@ -998,26 +1004,25 @@ const styles = StyleSheet.create({
   clearLocationButton: {
     padding: 4,
   },
-  createButton: {
-    backgroundColor: '#007AFF',
-    paddingVertical: 16,
-    borderRadius: 14,
+  submitButton: {
+    backgroundColor: '#6366f1',
+    padding: 16,
+    borderRadius: 12,
     alignItems: 'center',
-    marginHorizontal: 16,
-    marginTop: 16,
-    shadowColor: '#007AFF',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
+    marginVertical: 20,
+    shadowColor: '#6366f1',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 4,
   },
   disabledButton: {
     backgroundColor: '#a2c9f7',
     shadowOpacity: 0,
   },
-  createButtonText: {
-    color: '#ffffff',
-    fontSize: 17,
+  submitButtonText: {
+    color: '#fff',
+    fontSize: 18,
     fontWeight: '600',
   },
   modalContainer: {
@@ -1156,5 +1161,21 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 1,
     elevation: 1,
+  },
+  titleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#e5e5ea',
+    backgroundColor: '#ffffff',
+  },
+  screenTitle: {
+    fontSize: 34,
+    fontWeight: '700',
+    color: '#000000',
   },
 }); 
