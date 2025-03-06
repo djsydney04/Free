@@ -30,11 +30,11 @@ function TabNavigator() {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         tabBarIcon: ({ focused, color, size }) => {
-          let iconName: keyof typeof Ionicons.glyphMap;
+          let iconName;
 
           switch (route.name) {
             case 'Feed':
-              iconName = focused ? 'list' : 'list-outline';
+              iconName = focused ? 'search' : 'search-outline';
               break;
             case 'Map':
               iconName = focused ? 'map' : 'map-outline';
@@ -49,39 +49,48 @@ function TabNavigator() {
               iconName = 'help-outline';
           }
 
-          return <Ionicons name={iconName} size={size} color={color} />;
+          return <Ionicons name={iconName as any} size={size} color={color} />;
         },
         tabBarActiveTintColor: '#6366f1',
         tabBarInactiveTintColor: 'gray',
-        headerShown: true,
-        headerStyle: {
-          backgroundColor: '#fff',
-        },
-        headerTitleStyle: {
-          color: '#1f2937',
-          fontWeight: 'bold',
+        headerShown: false,
+        tabBarShowLabel: false,
+        tabBarStyle: {
+          paddingTop: 5,
         },
       })}
     >
       <Tab.Screen 
         name="Feed" 
         component={FeedScreen}
-        options={{ title: 'Event Feed' }}
+        options={{ 
+          title: '',
+          headerShown: false
+        }}
       />
       <Tab.Screen 
         name="Map" 
         component={MapScreen}
-        options={{ title: 'Event Map' }}
+        options={{ 
+          title: '',
+          headerShown: false
+        }}
       />
       <Tab.Screen 
         name="Create" 
         component={CreateEventScreen}
-        options={{ title: 'Create Event' }}
+        options={{ 
+          title: '',
+          headerShown: false
+        }}
       />
       <Tab.Screen 
         name="Profile" 
         component={ProfileScreen}
-        options={{ title: 'My Profile' }}
+        options={{ 
+          title: '',
+          headerShown: false
+        }}
       />
     </Tab.Navigator>
   );

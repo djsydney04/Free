@@ -57,28 +57,48 @@ function TabNavigator() {
         tabBarShowLabel: false,
         tabBarStyle: {
           paddingTop: 5,
+          height: 50,
         },
+        tabBarLabelStyle: {
+          display: 'none',
+        }
       })}
     >
       <Tab.Screen 
         name="Feed" 
         component={FeedScreen}
-        options={{ title: '' }}
+        options={{ 
+          title: '',
+          headerShown: false,
+          tabBarLabel: () => null
+        }}
       />
       <Tab.Screen 
         name="Map" 
         component={MapScreen}
-        options={{ title: '' }}
+        options={{ 
+          title: '',
+          headerShown: false,
+          tabBarLabel: () => null
+        }}
       />
       <Tab.Screen 
         name="Create" 
         component={CreateEventScreen}
-        options={{ title: '' }}
+        options={{ 
+          title: '',
+          headerShown: false,
+          tabBarLabel: () => null
+        }}
       />
       <Tab.Screen 
         name="Profile" 
         component={ProfileScreen}
-        options={{ title: '' }}
+        options={{ 
+          title: '',
+          headerShown: false,
+          tabBarLabel: () => null
+        }}
       />
     </Tab.Navigator>
   );
