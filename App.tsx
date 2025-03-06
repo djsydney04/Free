@@ -34,7 +34,7 @@ function TabNavigator() {
 
           switch (route.name) {
             case 'Feed':
-              iconName = focused ? 'list' : 'list-outline';
+              iconName = focused ? 'search' : 'search-outline';
               break;
             case 'Map':
               iconName = focused ? 'map' : 'map-outline';
@@ -53,35 +53,32 @@ function TabNavigator() {
         },
         tabBarActiveTintColor: '#6366f1',
         tabBarInactiveTintColor: 'gray',
-        headerShown: true,
-        headerStyle: {
-          backgroundColor: '#fff',
-        },
-        headerTitleStyle: {
-          color: '#1f2937',
-          fontWeight: 'bold',
+        headerShown: false,
+        tabBarShowLabel: false,
+        tabBarStyle: {
+          paddingTop: 5,
         },
       })}
     >
       <Tab.Screen 
         name="Feed" 
         component={FeedScreen}
-        options={{ title: 'Event Feed' }}
+        options={{ title: '' }}
       />
       <Tab.Screen 
         name="Map" 
         component={MapScreen}
-        options={{ title: 'Event Map' }}
+        options={{ title: '' }}
       />
       <Tab.Screen 
         name="Create" 
         component={CreateEventScreen}
-        options={{ title: 'Create Event' }}
+        options={{ title: '' }}
       />
       <Tab.Screen 
         name="Profile" 
         component={ProfileScreen}
-        options={{ title: 'My Profile' }}
+        options={{ title: '' }}
       />
     </Tab.Navigator>
   );

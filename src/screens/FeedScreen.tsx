@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, Fragment } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,8 @@ import {
   Dimensions,
   ActivityIndicator,
   SafeAreaView,
+  TextInput,
+  StatusBar,
 } from 'react-native';
 import { supabase } from '../services/supabase';
 import type { FreeEvent } from '../types';
@@ -22,6 +24,7 @@ import type { MainTabScreenProps } from '../types/navigation';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
+import { format } from 'date-fns';
 
 const CATEGORIES = ['ALL', 'FOOD', 'CONCERT', 'SPORTS', 'ACADEMIC', 'OTHER'] as const;
 const SORT_OPTIONS = ['RECENT', 'POPULAR', 'NEARBY'] as const;
@@ -36,12 +39,14 @@ export default function FeedScreen({ navigation }: MainTabScreenProps<'Feed'>) {
   const [selectedSortOption, setSelectedSortOption] = useState<typeof SORT_OPTIONS[number]>('RECENT');
   const [selectedDistance, setSelectedDistance] = useState<typeof DISTANCE_OPTIONS[number]>(5);
   const [userUniversity, setUserUniversity] = useState<string | null>(null);
-  const [expandedEvent, setExpandedEvent] = useState<FreeEvent | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<FreeEvent | null>(null);
   const [creatorName, setCreatorName] = useState<string>('');
   const [isFiltering, setIsFiltering] = useState(false);
   const [userLocation, setUserLocation] = useState<{latitude: number, longitude: number} | null>(null);
   const [showSortOptions, setShowSortOptions] = useState(false);
   const [showDistanceOptions, setShowDistanceOptions] = useState(false);
+  const [showExpandedEvent, setShowExpandedEvent] = useState(false);
+  const [showSearchModal, setShowSearchModal] = useState(false);
 
   // Get user location
   const getUserLocation = async () => {
@@ -275,231 +280,247 @@ export default function FeedScreen({ navigation }: MainTabScreenProps<'Feed'>) {
     }
   };
   
-  // Expanded event modal
+  // Completely rewrite the renderExpandedEventModal function
   const renderExpandedEventModal = () => {
-    if (!expandedEvent) return null;
+    if (!selectedEvent) return null;
     
+    const eventDate = new Date(selectedEvent.start_date);
+    const formattedDate = eventDate.toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric'
+    });
+    
+    const formattedTime = eventDate.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+
+    // Check if there's a valid address for directions
+    const hasValidAddress = selectedEvent.location && 
+      (selectedEvent.location.address || 
+      (selectedEvent.location.latitude && selectedEvent.location.longitude));
+
     return (
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={!!expandedEvent}
-        onRequestClose={() => setExpandedEvent(null)}
-      >
-        <SafeAreaView style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.partialModalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Event</Text>
             <TouchableOpacity 
+              onPress={() => setShowExpandedEvent(false)}
               style={styles.closeButton}
-              onPress={() => setExpandedEvent(null)}
+              accessibilityLabel="Close"
+              accessibilityHint="Double tap to close event details"
             >
-              <Ionicons name="close" size={24} color="#6366f1" />
+              <Ionicons name="close" size={24} color="#8e8e93" />
             </TouchableOpacity>
+          </View>
+          
+          <ScrollView style={styles.modalContent}>
+            <Text style={styles.eventDetailTitle}>{selectedEvent.title}</Text>
             
-            <ScrollView style={styles.modalScrollView} showsVerticalScrollIndicator={false}>
-              <Text style={styles.modalTitle}>{expandedEvent.title}</Text>
-              
-              <View style={styles.modalCategoryContainer}>
-                <Text style={styles.modalCategory}>{expandedEvent.category}</Text>
-                <Text style={styles.modalDate}>
-                  {new Date(expandedEvent.start_date).toLocaleDateString()} at {' '}
-                  {new Date(expandedEvent.start_date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+            <View style={styles.categoryBadge}>
+              <Ionicons 
+                name={getCategoryIconName(selectedEvent.category)} 
+                size={18} 
+                color="#007AFF" 
+              />
+              <Text style={styles.categoryBadgeText}>{selectedEvent.category}</Text>
+            </View>
+            
+            <View style={styles.dateTimeSection}>
+              <Ionicons name="calendar-outline" size={20} color="#8e8e93" />
+              <View style={styles.dateTimeContent}>
+                <Text style={styles.dateText}>{formattedDate}</Text>
+                <Text style={styles.timeText}>{formattedTime}</Text>
+              </View>
+            </View>
+            
+            <View style={styles.detailSection}>
+              <Text style={styles.sectionTitle}>About</Text>
+              <View style={styles.sectionContent}>
+                <Text style={styles.detailText}>
+                  {selectedEvent.description || "No description provided."}
                 </Text>
               </View>
-              
-              <Text style={styles.modalDescription}>{expandedEvent.description}</Text>
-              
-              {expandedEvent.location && (
-                <View style={styles.modalLocationContainer}>
-                  <View style={styles.modalSectionTitleContainer}>
-                    <Ionicons name="location" size={16} color="#4b5563" style={{marginRight: 6}} />
-                    <Text style={styles.modalSectionTitle}>Location</Text>
-                  </View>
-                  <Text style={styles.modalLocation}>
-                    {expandedEvent.location.address || 'Location not specified'}
+            </View>
+            
+            <View style={styles.detailSection}>
+              <Text style={styles.sectionTitle}>Location</Text>
+              <View style={styles.sectionContent}>
+                <View style={styles.locationRow}>
+                  <Ionicons name="location-outline" size={20} color="#8e8e93" />
+                  <Text style={styles.locationText}>
+                    {selectedEvent.location.buildingName || selectedEvent.location.address || "No location specified."}
                   </Text>
-                  <TouchableOpacity 
+                </View>
+                
+                {hasValidAddress && (
+                  <TouchableOpacity
                     style={styles.directionsButton}
-                    onPress={() => getDirections(expandedEvent)}
+                    onPress={() => getDirections(selectedEvent)}
+                    accessibilityLabel="Get directions"
+                    accessibilityHint="Double tap to get directions to this location"
                   >
-                    <Ionicons name="navigate" size={18} color="#fff" />
+                    <Ionicons name="navigate-outline" size={20} color="white" />
                     <Text style={styles.directionsButtonText}>Get Directions</Text>
                   </TouchableOpacity>
-                </View>
-              )}
-              
-              <View style={styles.modalFooter}>
-                <View style={styles.modalSectionTitleContainer}>
-                  <Ionicons name="information-circle" size={16} color="#4b5563" style={{marginRight: 6}} />
-                  <Text style={styles.modalSectionTitle}>Event Details</Text>
-                </View>
-                <View style={styles.postedByContainer}>
-                  <Text style={styles.postedByLabel}>Posted by:</Text>
-                  <Text style={styles.postedByValue}>{creatorName}</Text>
-                </View>
-                <View style={styles.postedByContainer}>
-                  <Text style={styles.postedByLabel}>Posted on:</Text>
-                  <Text style={styles.postedByValue}>
-                    {new Date(expandedEvent.created_at).toLocaleDateString()} at {' '}
-                    {new Date(expandedEvent.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                  </Text>
-                </View>
+                )}
               </View>
-            </ScrollView>
-          </View>
-        </SafeAreaView>
-      </Modal>
+            </View>
+          </ScrollView>
+        </View>
+      </View>
     );
   };
 
-  const renderEventCard = ({ item }: { item: FreeEvent }) => (
-    <TouchableOpacity 
-      style={styles.card}
-      onPress={() => {
-        setExpandedEvent(item);
-        fetchCreatorProfile(item.created_by);
-      }}
-      activeOpacity={0.7}
-    >
-      <View style={styles.cardHeader}>
-        <Text style={styles.eventTitle} numberOfLines={1}>
-          {item.title}
-        </Text>
-        <View style={styles.eventCategoryContainer}>
-          <Text style={styles.eventCategory}>{item.category}</Text>
-        </View>
-      </View>
-      
-      <Text style={styles.eventDescription} numberOfLines={2}>
-        {item.description}
-      </Text>
-      
-      <View style={styles.cardDetailsContainer}>
-        {item.location && (
-          <View style={styles.locationContainer}>
-            <Ionicons name="location-outline" size={14} color="#6b7280" style={styles.detailIcon} />
-            <Text style={styles.eventLocation} numberOfLines={1}>
-              {item.location.address || 'Location not specified'}
-            </Text>
+  // Helper function to get the icon name for each category
+  const getCategoryIconName = (category: string) => {
+    switch (category) {
+      case 'FOOD': return 'restaurant-outline';
+      case 'CONCERT': return 'musical-notes-outline';
+      case 'SPORTS': return 'football-outline';
+      case 'ACADEMIC': return 'school-outline';
+      case 'OTHER': return 'star-outline';
+      default: return 'star-outline';
+    }
+  };
+
+  const renderEventCard = ({ item }: { item: FreeEvent }) => {
+    const formattedDate = formatEventDate(new Date(item.start_date));
+    
+    return (
+      <TouchableOpacity
+        style={styles.eventCard}
+        onPress={() => {
+          setSelectedEvent(item);
+          setShowExpandedEvent(true);
+        }}
+        activeOpacity={0.7}
+        accessibilityLabel={`${item.title} event card`}
+        accessibilityHint="Double tap to view event details"
+      >
+        <View style={styles.cardHeader}>
+          <Text style={styles.eventTitle}>{item.title}</Text>
+          <View style={styles.categoryTag}>
+            <Text style={styles.categoryTagText}>{item.category}</Text>
           </View>
+        </View>
+        
+        {item.description && (
+          <Text 
+            style={styles.eventDescription} 
+            numberOfLines={2}
+          >
+            {item.description}
+          </Text>
         )}
         
-        <View style={styles.dateContainer}>
-          <Ionicons name="calendar-outline" size={14} color="#6b7280" style={styles.detailIcon} />
-          <Text style={styles.eventDate}>
-            {new Date(item.start_date).toLocaleDateString()}
-          </Text>
+        <View style={styles.eventDetails}>
+          <View style={styles.detailItem}>
+            <Ionicons name="location-outline" size={16} color="#8e8e93" style={styles.detailIcon} />
+            <Text style={styles.detailText}>
+              {item.location.buildingName || item.location.address || 'Location not specified'}
+            </Text>
+          </View>
+          
+          <View style={styles.detailItem}>
+            <Ionicons name="calendar-outline" size={16} color="#8e8e93" style={styles.detailIcon} />
+            <Text style={styles.detailText}>{formattedDate}</Text>
+          </View>
         </View>
-      </View>
-      
-      <View style={styles.cardActionHint}>
-        <Text style={styles.cardActionHintText}>Tap for details</Text>
-        <Ionicons name="chevron-forward" size={14} color="#6b7280" />
-      </View>
-    </TouchableOpacity>
-  );
+        
+        <View style={styles.tapForDetails}>
+          <Text style={styles.tapForDetailsText}>Tap for details</Text>
+          <Ionicons name="chevron-forward" size={16} color="#8e8e93" />
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   const renderEmptyState = () => {
-    if (loading || isFiltering) {
+    if (loading) {
       return (
         <View style={styles.emptyStateContainer}>
-          <ActivityIndicator size="large" color="#6366f1" />
-          <Text style={styles.emptyStateText}>Loading events...</Text>
+          <ActivityIndicator size="large" color="#007AFF" />
+          <Text style={[styles.emptyStateText, { marginTop: 16 }]}>
+            Loading events...
+          </Text>
         </View>
       );
     }
-    
+
     return (
       <View style={styles.emptyStateContainer}>
-        <Ionicons name="calendar-outline" size={48} color="#d1d5db" />
-        <Text style={styles.emptyStateTitle}>No events found</Text>
+        <Ionicons name="calendar-outline" size={64} color="#c7c7cc" style={{ marginBottom: 16 }} />
+        <Text style={styles.emptyStateTitle}>No Events Found</Text>
         <Text style={styles.emptyStateText}>
-          {selectedCategory === 'ALL' 
-            ? 'There are no upcoming events in your area.'
-            : `There are no upcoming ${selectedCategory.toLowerCase()} events.`}
+          {selectedCategory !== 'ALL' 
+            ? `No ${selectedCategory.toLowerCase()} events are currently available.`
+            : 'There are no events matching your criteria.'}
         </Text>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.emptyStateButton}
           onPress={() => {
             setSelectedCategory('ALL');
             setSelectedSortOption('RECENT');
-            setSelectedDistance(5);
+            fetchEvents();
           }}
+          accessibilityLabel="Reset filters"
+          accessibilityHint="Double tap to show all events"
         >
-          <Text style={styles.emptyStateButtonText}>See all events</Text>
+          <Text style={styles.emptyStateButtonText}>Reset Filters</Text>
         </TouchableOpacity>
       </View>
     );
   };
 
-  const renderCategoryPill = (category: typeof CATEGORIES[number]) => (
-    <TouchableOpacity
-      key={category}
-      style={[
-        styles.pill,
-        selectedCategory === category && styles.activePill,
-      ]}
-      onPress={() => setSelectedCategory(category)}
-    >
-      {getCategoryIcon(category)}
-      <Text
-        style={[
-          styles.pillText,
-          selectedCategory === category && styles.activePillText,
-        ]}
-      >
-        {category}
-      </Text>
-    </TouchableOpacity>
-  );
+  const renderCategoryPill = (category: typeof CATEGORIES[number]) => {
+    const isSelected = selectedCategory === category;
+    return (
+      <View style={[styles.categoryPill, isSelected && styles.selectedCategoryFilter]}>
+        {getCategoryIcon(category, isSelected)}
+        <Text style={[
+          styles.categoryText,
+          isSelected && styles.selectedCategoryFilterText
+        ]}>
+          {category}
+        </Text>
+      </View>
+    );
+  };
   
-  const getCategoryIcon = (category: typeof CATEGORIES[number]) => {
-    let iconName = 'apps-outline';
+  const getCategoryIcon = (category: typeof CATEGORIES[number], isSelected: boolean = false) => {
+    const color = isSelected ? "#ffffff" : "#007AFF";
     
     switch (category) {
       case 'FOOD':
-        iconName = 'restaurant-outline';
-        break;
+        return <Ionicons name="restaurant-outline" size={18} color={color} style={styles.pillIcon} />;
       case 'CONCERT':
-        iconName = 'musical-notes-outline';
-        break;
+        return <Ionicons name="musical-notes-outline" size={18} color={color} style={styles.pillIcon} />;
       case 'SPORTS':
-        iconName = 'football-outline';
-        break;
+        return <Ionicons name="football-outline" size={18} color={color} style={styles.pillIcon} />;
       case 'ACADEMIC':
-        iconName = 'school-outline';
-        break;
+        return <Ionicons name="school-outline" size={18} color={color} style={styles.pillIcon} />;
       case 'OTHER':
-        iconName = 'star-outline';
-        break;
+        return <Ionicons name="star-outline" size={18} color={color} style={styles.pillIcon} />;
+      default:
+        return <Ionicons name="help-outline" size={18} color={color} style={styles.pillIcon} />;
     }
-    
-    return (
-      <Ionicons 
-        name={iconName as any} 
-        size={16} 
-        color={selectedCategory === category ? '#ffffff' : '#6366f1'} 
-        style={styles.pillIcon}
-      />
-    );
   };
 
   const renderSortOption = (option: typeof SORT_OPTIONS[number]) => {
-    let label = '';
-    let iconName = '';
+    const isActive = selectedSortOption === option;
+    let iconName: any = 'time-outline';
     
-    switch (option) {
-      case 'RECENT':
-        label = 'Most Recent';
-        iconName = 'time-outline';
-        break;
-      case 'POPULAR':
-        label = 'Most Popular';
-        iconName = 'flame-outline';
-        break;
-      case 'NEARBY':
-        label = 'Nearest';
-        iconName = 'location-outline';
-        break;
+    if (option === 'RECENT') {
+      iconName = 'time-outline';
+    } else if (option === 'POPULAR') {
+      iconName = 'flame-outline';
+    } else if (option === 'NEARBY') {
+      iconName = 'location-outline';
     }
     
     return (
@@ -507,30 +528,34 @@ export default function FeedScreen({ navigation }: MainTabScreenProps<'Feed'>) {
         key={option}
         style={[
           styles.sortOption,
-          selectedSortOption === option && styles.activeSortOption,
+          isActive && styles.activeSortOption
         ]}
         onPress={() => {
           setSelectedSortOption(option);
           setShowSortOptions(false);
-          if (option === 'NEARBY' && !userLocation) {
+          
+          if (option === 'NEARBY') {
             getUserLocation();
           }
         }}
       >
-        <Ionicons 
-          name={iconName as any} 
-          size={16} 
-          color={selectedSortOption === option ? '#ffffff' : '#6366f1'} 
+        <Ionicons
+          name={iconName}
+          size={18}
+          color={isActive ? '#6366f1' : '#6b7280'}
           style={styles.sortOptionIcon}
         />
-        <Text
-          style={[
-            styles.sortOptionText,
-            selectedSortOption === option && styles.activeSortOptionText,
-          ]}
-        >
-          {label}
+        <Text style={[
+          styles.sortOptionText,
+          isActive && styles.activeSortOptionText
+        ]}>
+          {option === 'RECENT' ? 'Most Recent' : 
+           option === 'POPULAR' ? 'Most Popular' : 
+           'Nearest'}
         </Text>
+        {isActive && (
+          <Ionicons name="checkmark" size={18} color="#6366f1" style={{ marginLeft: 'auto' }} />
+        )}
       </TouchableOpacity>
     );
   };
@@ -540,21 +565,24 @@ export default function FeedScreen({ navigation }: MainTabScreenProps<'Feed'>) {
       key={distance}
       style={[
         styles.distanceOption,
-        selectedDistance === distance && styles.activeDistanceOption,
+        selectedDistance === distance && styles.activeDistanceOption
       ]}
       onPress={() => {
         setSelectedDistance(distance);
         setShowDistanceOptions(false);
+        getUserLocation(); // Refresh with new distance filter
       }}
     >
-      <Text
-        style={[
-          styles.distanceOptionText,
-          selectedDistance === distance && styles.activeDistanceOptionText,
-        ]}
-      >
-        {distance < 1 ? `${distance * 10}/10` : distance} {distance === 1 ? 'mile' : 'miles'}
+      <Text style={[
+        styles.distanceOptionText,
+        selectedDistance === distance && styles.activeDistanceOptionText
+      ]}>
+        {distance === 0.5 ? 'Any Distance' :
+         `Within ${distance} ${distance === 1 ? 'mile' : 'miles'}`}
       </Text>
+      {selectedDistance === distance && (
+        <Ionicons name="checkmark" size={18} color="#6366f1" style={{ marginLeft: 'auto' }} />
+      )}
     </TouchableOpacity>
   );
 
@@ -565,101 +593,192 @@ export default function FeedScreen({ navigation }: MainTabScreenProps<'Feed'>) {
       case 'POPULAR':
         return 'Most Popular';
       case 'NEARBY':
-        return `Within ${selectedDistance} ${selectedDistance === 1 ? 'mile' : 'miles'}`;
+        return `Within ${selectedDistance} {selectedDistance === 1 ? 'mile' : 'miles'}`;
     }
   };
 
+  const formatEventDate = (date: Date) => {
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+  };
+
+  const renderSearchModal = () => (
+    <View style={styles.searchModalContainer}>
+      <View style={styles.searchModalContent}>
+        <View style={styles.searchModalHeader}>
+          <TouchableOpacity onPress={() => setShowSearchModal(false)}>
+            <Ionicons name="close" size={24} color="#007AFF" />
+          </TouchableOpacity>
+          <Text style={styles.searchModalTitle}>Search Events</Text>
+          <View style={{ width: 24 }} />
+        </View>
+        
+        <View style={styles.searchInputContainer}>
+          <Ionicons name="search" size={20} color="#8e8e93" style={styles.searchInputIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search events..."
+            placeholderTextColor="#8e8e93"
+          />
+        </View>
+        
+        <Text style={styles.searchModalMessage}>
+          Search functionality coming soon!
+        </Text>
+      </View>
+    </View>
+  );
+
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Discover Events</Text>
+      <StatusBar barStyle="dark-content" />
+      
+      <View style={styles.titleContainer}>
+        <Text style={styles.title}>Discover</Text>
+        <TouchableOpacity 
+          style={styles.searchButton}
+          onPress={() => setShowSearchModal(true)}
+          accessibilityLabel="Search events"
+          accessibilityHint="Double tap to search for events"
+        >
+          <Ionicons name="search" size={22} color="#8e8e93" />
+        </TouchableOpacity>
       </View>
       
-      {/* Category Filter Pills */}
-      <View style={styles.filtersContainer}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.pillsContainer}
+      <View style={styles.filterContainer}>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false} 
+          style={styles.categoryFilters}
+          contentContainerStyle={styles.categoryFiltersContent}
         >
-          {CATEGORIES.map(renderCategoryPill)}
+          <TouchableOpacity
+            style={[
+              styles.categoryFilter,
+              selectedCategory === 'ALL' && styles.selectedCategoryFilter
+            ]}
+            onPress={() => setSelectedCategory('ALL')}
+            accessibilityLabel="All events category filter"
+            accessibilityState={{ selected: selectedCategory === 'ALL' }}
+          >
+            <Ionicons name="grid-outline" size={20} color={selectedCategory === 'ALL' ? "#ffffff" : "#007AFF"} />
+            <Text style={[
+              styles.categoryFilterText,
+              selectedCategory === 'ALL' && styles.selectedCategoryFilterText
+            ]}>
+              All Events
+            </Text>
+          </TouchableOpacity>
+          
+          {CATEGORIES.filter(cat => cat !== 'ALL').map((category) => (
+            <TouchableOpacity
+              key={category}
+              style={[
+                styles.categoryFilter,
+                selectedCategory === category && styles.selectedCategoryFilter
+              ]}
+              onPress={() => setSelectedCategory(category)}
+              accessibilityLabel={`${category} category filter`}
+              accessibilityState={{ selected: selectedCategory === category }}
+            >
+              {getCategoryIcon(category, selectedCategory === category)}
+              <Text style={[
+                styles.categoryFilterText,
+                selectedCategory === category && styles.selectedCategoryFilterText
+              ]}>
+                {category}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </ScrollView>
-      </View>
-
-      {/* Sort and Distance Options */}
-      <View style={styles.sortContainer}>
-        <TouchableOpacity 
-          style={styles.sortButton}
-          onPress={() => {
-            setShowSortOptions(!showSortOptions);
-            setShowDistanceOptions(false);
-          }}
-        >
-          <Ionicons name="options-outline" size={16} color="#6366f1" />
-          <Text style={styles.sortButtonText}>{getSortLabel()}</Text>
-          <Ionicons 
-            name={showSortOptions ? "chevron-up" : "chevron-down"} 
-            size={16} 
-            color="#6366f1" 
-          />
-        </TouchableOpacity>
         
-        {selectedSortOption === 'NEARBY' && (
-          <TouchableOpacity 
-            style={styles.distanceButton}
+        <View style={styles.sortFilterContainer}>
+          <TouchableOpacity
+            style={styles.sortButton}
+            onPress={() => {
+              setShowSortOptions(!showSortOptions);
+              setShowDistanceOptions(false);
+            }}
+            accessibilityLabel="Sort events"
+            accessibilityHint="Double tap to change sort order"
+          >
+            <Text style={styles.sortButtonText}>{getSortLabel()}</Text>
+            <Ionicons 
+              name={showSortOptions ? "chevron-up" : "chevron-down"} 
+              size={16} 
+              color="#007AFF" 
+            />
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={styles.filterButton}
             onPress={() => {
               setShowDistanceOptions(!showDistanceOptions);
               setShowSortOptions(false);
             }}
+            accessibilityLabel="Filter by distance"
+            accessibilityHint="Double tap to filter events by distance"
           >
-            <Ionicons name="compass-outline" size={16} color="#6366f1" />
-            <Text style={styles.distanceButtonText}>{selectedDistance} {selectedDistance === 1 ? 'mile' : 'miles'}</Text>
+            <Text style={styles.filterButtonText}>
+              {selectedDistance === 0.5 ? 'Any Distance' : `${selectedDistance} miles`}
+            </Text>
             <Ionicons 
               name={showDistanceOptions ? "chevron-up" : "chevron-down"} 
               size={16} 
-              color="#6366f1" 
+              color="#007AFF" 
             />
           </TouchableOpacity>
+        </View>
+        
+        {showSortOptions && (
+          <View style={styles.optionsContainer}>
+            {SORT_OPTIONS.map((option) => renderSortOption(option))}
+          </View>
+        )}
+        
+        {showDistanceOptions && (
+          <View style={styles.optionsContainer}>
+            {DISTANCE_OPTIONS.map((distance) => renderDistanceOption(distance))}
+          </View>
         )}
       </View>
       
-      {/* Sort Options Dropdown */}
-      {showSortOptions && (
-        <View style={styles.optionsDropdown}>
-          {SORT_OPTIONS.map(renderSortOption)}
-        </View>
-      )}
-      
-      {/* Distance Options Dropdown */}
-      {showDistanceOptions && (
-        <View style={styles.optionsDropdown}>
-          {DISTANCE_OPTIONS.map(renderDistanceOption)}
-        </View>
-      )}
-
       <FlatList
         data={filteredEvents}
         renderItem={renderEventCard}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={[
-          styles.listContent,
-          filteredEvents.length === 0 && { flex: 1, justifyContent: 'center' }
-        ]}
+        contentContainerStyle={styles.scrollContainer}
         refreshControl={
-          <RefreshControl 
-            refreshing={loading} 
-            onRefresh={fetchEvents}
-            tintColor="#6366f1"
-          />
+          <RefreshControl refreshing={loading} onRefresh={fetchEvents} tintColor="#007AFF" />
         }
         ListEmptyComponent={renderEmptyState}
-        showsVerticalScrollIndicator={true}
-        initialNumToRender={10}
-        maxToRenderPerBatch={10}
-        windowSize={10}
+        showsVerticalScrollIndicator={false}
       />
       
-      {renderExpandedEventModal()}
+      {showSearchModal && (
+        <Modal
+          animationType="slide"
+          transparent={true}
+          visible={showSearchModal}
+          onRequestClose={() => setShowSearchModal(false)}
+        >
+          {renderSearchModal()}
+        </Modal>
+      )}
+      
+      {showExpandedEvent && selectedEvent && (
+        <Modal
+          animationType="slide"
+          transparent={true}
+          visible={showExpandedEvent}
+          onRequestClose={() => setShowExpandedEvent(false)}
+        >
+          {renderExpandedEventModal()}
+        </Modal>
+      )}
     </SafeAreaView>
   );
 }
@@ -667,125 +786,347 @@ export default function FeedScreen({ navigation }: MainTabScreenProps<'Feed'>) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f7',
+    backgroundColor: '#f2f2f7',
   },
-  header: {
-    padding: 16,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+  titleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#e5e5ea',
   },
-  headerTitle: {
-    fontSize: 22,
+  title: {
+    fontSize: 34,
     fontWeight: '700',
     color: '#000000',
-    letterSpacing: -0.5,
   },
-  filtersContainer: {
-    paddingVertical: 12,
+  searchButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f2f2f7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterContainer: {
     backgroundColor: '#ffffff',
+    paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#e5e5ea',
+  },
+  categoryFilters: {
+    paddingHorizontal: 16,
+  },
+  categoryFiltersContent: {
+    paddingVertical: 8,
+  },
+  categoryFilter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 18,
+    marginRight: 8,
+    backgroundColor: '#efeff4',
+  },
+  selectedCategoryFilter: {
+    backgroundColor: '#007AFF',
+  },
+  categoryFilterText: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#007AFF',
+    marginLeft: 6,
+  },
+  selectedCategoryFilterText: {
+    color: '#ffffff',
+  },
+  sortFilterContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  sortButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  sortButtonText: {
+    fontSize: 15,
+    color: '#007AFF',
+    marginRight: 4,
+  },
+  filterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  filterButtonText: {
+    fontSize: 15,
+    color: '#007AFF',
+    marginRight: 4,
+  },
+  optionsContainer: {
+    backgroundColor: '#ffffff',
+    marginHorizontal: 16,
+    borderRadius: 12,
+    marginBottom: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
     elevation: 2,
-    zIndex: 10,
   },
-  pillsContainer: {
+  scrollContainer: {
+    paddingTop: 16,
+    paddingBottom: 20,
     paddingHorizontal: 16,
+  },
+  eventCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  eventTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#000000',
+    flex: 1,
+    marginRight: 8,
+  },
+  categoryTag: {
+    backgroundColor: '#f0f0ff',
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+  },
+  categoryTagText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#5856d6',
+  },
+  eventDescription: {
+    fontSize: 15,
+    color: '#3a3a3c',
+    marginBottom: 12,
+  },
+  eventDetails: {
+    marginTop: 4,
+  },
+  detailItem: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 6,
   },
-  pill: {
+  detailIcon: {
+    marginRight: 6,
+  },
+  detailText: {
+    fontSize: 14,
+    color: '#8e8e93',
+  },
+  tapForDetails: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 12,
+    marginTop: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#e5e5ea',
+  },
+  tapForDetailsText: {
+    fontSize: 15,
+    color: '#5856d6',
+    fontWeight: '500',
+  },
+  emptyStateContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+  },
+  emptyStateTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#000',
+    marginBottom: 8,
+  },
+  emptyStateText: {
+    fontSize: 15,
+    color: '#3c3c43',
+    opacity: 0.6,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  emptyStateButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    backgroundColor: '#007AFF',
+    borderRadius: 12,
+  },
+  emptyStateButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    justifyContent: 'flex-end',
+  },
+  partialModalContainer: {
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    height: '80%',
+    paddingBottom: 30,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
+    elevation: 5,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#e5e5ea',
+    position: 'relative',
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#000000',
+  },
+  closeButton: {
+    position: 'absolute',
+    right: 12,
+    padding: 4,
+  },
+  modalContent: {
+    flex: 1,
+    padding: 16,
+  },
+  eventDetailTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#000000',
+    marginBottom: 12,
+  },
+  categoryBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#007AFF',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    alignSelf: 'flex-start',
+    marginBottom: 20,
+    backgroundColor: 'rgba(0, 122, 255, 0.1)'
+  },
+  categoryBadgeText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#007AFF',
+    marginLeft: 8,
+  },
+  dateTimeSection: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 24,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#e5e5ea',
+    paddingBottom: 16,
+  },
+  dateTimeContent: {
+    marginLeft: 12,
+  },
+  dateText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#000000',
+  },
+  timeText: {
+    fontSize: 15,
+    color: '#3a3a3c',
+    marginTop: 4,
+  },
+  detailSection: {
+    marginBottom: 24,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#e5e5ea',
+    paddingBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#000000',
+    marginBottom: 12,
+  },
+  sectionContent: {
+    backgroundColor: '#f2f2f7',
+    padding: 16,
+    borderRadius: 12,
+  },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  locationText: {
+    fontSize: 16,
+    color: '#3a3a3c',
+    marginLeft: 12,
+    flex: 1,
+  },
+  directionsButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#f3f4f6',
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    minWidth: 80,
-    height: 36,
-  },
-  activePill: {
-    backgroundColor: '#6366f1',
-    borderColor: '#4f46e5',
-  },
-  pillIcon: {
-    marginRight: 4,
-  },
-  pillText: {
-    color: '#6366f1',
-    fontWeight: '600',
-    fontSize: 13,
-    textAlign: 'center',
-  },
-  activePillText: {
-    color: '#fff',
-  },
-  sortContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
+    backgroundColor: '#007AFF',
     paddingVertical: 12,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-    zIndex: 5,
-  },
-  sortButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f3f4f6',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  sortButtonText: {
-    color: '#6366f1',
-    fontWeight: '600',
-    fontSize: 13,
-    marginHorizontal: 6,
-  },
-  distanceButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f3f4f6',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  distanceButtonText: {
-    color: '#6366f1',
-    fontWeight: '600',
-    fontSize: 13,
-    marginHorizontal: 6,
-  },
-  optionsDropdown: {
-    backgroundColor: '#ffffff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    zIndex: 4,
+    borderRadius: 10,
+    alignSelf: 'flex-start',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  directionsButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#ffffff',
+    marginLeft: 8,
   },
   sortOption: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 10,
     paddingHorizontal: 12,
-    borderRadius: 8,
+    borderRadius: 12,
     marginBottom: 4,
   },
   activeSortOption: {
-    backgroundColor: '#6366f1',
+    backgroundColor: '#f0f1fe',
   },
   sortOptionIcon: {
     marginRight: 8,
@@ -796,16 +1137,17 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   activeSortOptionText: {
-    color: '#ffffff',
+    color: '#6366f1',
+    fontWeight: '600',
   },
   distanceOption: {
     paddingVertical: 10,
     paddingHorizontal: 12,
-    borderRadius: 8,
+    borderRadius: 12,
     marginBottom: 4,
   },
   activeDistanceOption: {
-    backgroundColor: '#6366f1',
+    backgroundColor: '#f0f1fe',
   },
   distanceOptionText: {
     color: '#4b5563',
@@ -813,241 +1155,73 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   activeDistanceOptionText: {
-    color: '#ffffff',
-  },
-  listContent: {
-    padding: 16,
-  },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 10,
-  },
-  eventTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1f2937',
-    flex: 1,
-    marginRight: 12,
-  },
-  eventDescription: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginBottom: 16,
-    lineHeight: 20,
-  },
-  eventCategoryContainer: {
-    backgroundColor: '#e0e7ff',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    alignSelf: 'flex-start',
-  },
-  eventCategory: {
-    fontSize: 12,
     color: '#6366f1',
     fontWeight: '600',
   },
-  cardDetailsContainer: {
-    marginBottom: 12,
-  },
-  locationContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  detailIcon: {
-    marginRight: 6,
-  },
-  eventLocation: {
-    fontSize: 13,
-    color: '#6b7280',
+  searchModalContainer: {
     flex: 1,
-  },
-  dateContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  eventDate: {
-    fontSize: 13,
-    color: '#6b7280',
-  },
-  cardActionHint: {
-    marginTop: 10,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  cardActionHintText: {
-    color: '#6366f1',
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  emptyStateContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 30,
-  },
-  emptyStateTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginTop: 12,
-    marginBottom: 8,
-  },
-  emptyStateText: {
-    fontSize: 14,
-    color: '#6b7280',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  emptyStateButton: {
-    backgroundColor: '#6366f1',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-  },
-  emptyStateButtonText: {
-    color: '#ffffff',
-    fontWeight: '600',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'flex-end',
   },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: '90%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-    paddingTop: 20,
-    paddingHorizontal: 20,
-    paddingBottom: Platform.OS === 'ios' ? 40 : 30, // Extra padding for iOS
-  },
-  closeButton: {
-    alignSelf: 'flex-end',
-    padding: 6,
-  },
-  modalScrollView: {
-    marginTop: 10,
-    marginBottom: 10,
-  },
-  modalTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#1f2937',
-    marginBottom: 16,
-    marginRight: 30,
-  },
-  modalCategoryContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-    backgroundColor: '#f9fafb',
-    padding: 12,
-    borderRadius: 12,
-  },
-  modalCategory: {
-    fontSize: 14,
-    color: '#6366f1',
-    fontWeight: '600',
-    backgroundColor: '#e0e7ff',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  modalDate: {
-    fontSize: 14,
-    color: '#6b7280',
-  },
-  modalDescription: {
-    fontSize: 16,
-    color: '#4b5563',
-    marginBottom: 24,
-    lineHeight: 24,
-  },
-  modalLocationContainer: {
-    marginBottom: 24,
-    backgroundColor: '#f9fafb',
-    padding: 16,
-    borderRadius: 12,
-  },
-  modalSectionTitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  modalSectionTitle: {
-    fontSize: 16,
-    color: '#4b5563',
-    fontWeight: '600',
-  },
-  modalLocation: {
-    fontSize: 15,
-    color: '#6b7280',
-    marginBottom: 16,
-    lineHeight: 22,
-  },
-  directionsButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 12,
-    backgroundColor: '#6366f1',
-    borderRadius: 12,
-    marginTop: 8,
-  },
-  directionsButtonText: {
-    fontSize: 15,
-    color: '#ffffff',
-    fontWeight: '600',
-    marginLeft: 8,
-  },
-  modalFooter: {
-    marginTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
+  searchModalContent: {
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
     paddingTop: 16,
-    marginBottom: 20,
+    paddingBottom: 40,
+    maxHeight: '80%',
   },
-  postedByContainer: {
+  searchModalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingBottom: 16,
   },
-  postedByLabel: {
-    fontSize: 14,
-    color: '#6b7280',
+  searchModalTitle: {
+    fontSize: 17,
     fontWeight: '600',
-    width: 80,
+    color: '#000000',
   },
-  postedByValue: {
-    fontSize: 14,
-    color: '#4b5563',
+  searchInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#efeff4',
+    margin: 16,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    height: 44,
+  },
+  searchInputIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
     flex: 1,
+    height: 44,
+    fontSize: 17,
+    color: '#000000',
+  },
+  searchModalMessage: {
+    fontSize: 15,
+    color: '#8e8e93',
+    textAlign: 'center',
+    marginTop: 40,
+  },
+  categoryPill: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    backgroundColor: '#f2f2f7',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  categoryText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#007AFF',
+    marginLeft: 4,
+  },
+  pillIcon: {
+    marginRight: 4,
   },
 }); 

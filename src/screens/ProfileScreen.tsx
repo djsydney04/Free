@@ -7,16 +7,34 @@ import {
   Alert,
   ScrollView,
   RefreshControl,
+  Platform,
+  Image,
+  SafeAreaView,
+  ActivityIndicator,
+  StatusBar,
 } from 'react-native';
 import { supabase } from '../services/supabase';
 import type { User, UserProfile, FreeEvent } from '../types';
 import type { MainTabScreenProps } from '../types/navigation';
+// Use a try-catch for importing Ionicons
+let Ionicons: any;
+try {
+  Ionicons = require('react-native-vector-icons/Ionicons').default;
+} catch (e) {
+  console.warn('Ionicons not found, using fallback');
+  // Fallback implementation if needed
+  Ionicons = {
+    name: () => null,
+  };
+}
 
 export default function ProfileScreen({ navigation }: MainTabScreenProps<'Profile'>) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [userEvents, setUserEvents] = useState<FreeEvent[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [hostedEvents, setHostedEvents] = useState<FreeEvent[]>([]);
 
   const fetchUserProfile = async () => {
     try {
@@ -43,6 +61,10 @@ export default function ProfileScreen({ navigation }: MainTabScreenProps<'Profil
 
       if (eventsError) throw eventsError;
       setUserEvents(eventsData);
+
+      // Only keep hosted events
+      const hostedEvents = eventsData.filter(event => event.created_by === user.id);
+      setHostedEvents(hostedEvents);
     } catch (error: any) {
       console.error('Error fetching profile:', error.message);
     }
@@ -69,16 +91,22 @@ export default function ProfileScreen({ navigation }: MainTabScreenProps<'Profil
 
   const renderEventCard = (event: FreeEvent) => {
     const eventDate = new Date(event.start_date);
-    const isExpired = eventDate < new Date();
-
+    const now = new Date();
+    const isExpired = eventDate < now;
+    
+    // Format the location properly
+    const locationText = event.location?.address || 
+                        event.location?.buildingName || 
+                        'No location specified';
+    
     return (
       <View key={event.id} style={[styles.eventCard, isExpired && styles.expiredCard]}>
         <Text style={styles.eventTitle}>{event.title}</Text>
         <Text style={styles.eventDescription} numberOfLines={2}>
           {event.description}
         </Text>
-        <View style={styles.eventFooter}>
-          <Text style={styles.eventCategory}>{event.category}</Text>
+        <View style={styles.eventMeta}>
+          <Text style={styles.eventLocation}>{locationText}</Text>
           <Text style={styles.eventDate}>
             {eventDate.toLocaleDateString()}
           </Text>
@@ -87,149 +115,258 @@ export default function ProfileScreen({ navigation }: MainTabScreenProps<'Profil
     );
   };
 
+  const renderEvents = (events: FreeEvent[]) => {
+    if (events.length === 0) {
+      return (
+        <View style={styles.emptyStateContainer}>
+          <Ionicons name="alert-circle" size={40} color="#8e8e93" style={styles.emptyStateIcon} />
+          <Text style={styles.emptyStateText}>No events found</Text>
+        </View>
+      );
+    }
+    return events.map(renderEventCard);
+  };
+
   return (
-    <ScrollView
-      style={styles.container}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
-    >
-      <View style={styles.header}>
-        <Text style={styles.title}>Profile</Text>
-        <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" />
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#007AFF']}
+            tintColor="#007AFF"
+          />
+        }
+      >
+        <View style={styles.header}>
+          <View style={styles.profileImageContainer}>
+            {profile?.profileImage ? (
+              <Image 
+                source={{ uri: profile.profileImage }} 
+                style={styles.profileImage}
+                accessibilityLabel="Profile image"
+              />
+            ) : (
+              <View style={styles.profileImagePlaceholder}>
+                <Ionicons name="person" size={40} color="#c7c7cc" />
+              </View>
+            )}
+          </View>
+          
+          <Text style={styles.username}>
+            {user?.username || user?.email?.split('@')[0] || 'User'}
+          </Text>
+          
+          {profile?.bio && (
+            <Text style={styles.bio}>{profile.bio}</Text>
+          )}
+          
+          <TouchableOpacity 
+            style={styles.editProfileButton}
+            onPress={() => {
+              console.log('Edit profile pressed');
+            }}
+            accessibilityLabel="Edit profile"
+            accessibilityHint="Double tap to edit your profile information"
+          >
+            <Text style={styles.editProfileButtonText}>Edit Profile</Text>
+          </TouchableOpacity>
+        </View>
+        
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Your Events</Text>
+          </View>
+          
+          {hostedEvents.length > 0 ? (
+            renderEvents(hostedEvents)
+          ) : (
+            <View style={styles.emptyState}>
+              <Ionicons name="calendar-outline" size={40} color="#c7c7cc" />
+              <Text style={styles.emptyStateText}>
+                You haven't created any events yet
+              </Text>
+            </View>
+          )}
+        </View>
+        
+        <TouchableOpacity 
+          style={styles.signOutButton}
+          onPress={handleSignOut}
+          accessibilityLabel="Sign out"
+          accessibilityHint="Double tap to sign out of your account"
+        >
           <Text style={styles.signOutButtonText}>Sign Out</Text>
         </TouchableOpacity>
-      </View>
-
-      <View style={styles.profileSection}>
-        <Text style={styles.email}>{user?.email}</Text>
-        {profile && (
-          <View style={styles.profileInfo}>
-            <Text style={styles.university}>{profile.university}</Text>
-            {profile.bio && <Text style={styles.bio}>{profile.bio}</Text>}
-          </View>
-        )}
-      </View>
-
-      <View style={styles.eventsSection}>
-        <Text style={styles.sectionTitle}>Your Events</Text>
-        {userEvents.length > 0 ? (
-          userEvents.map(renderEventCard)
-        ) : (
-          <Text style={styles.noEventsText}>
-            You haven't created any events yet
-          </Text>
-        )}
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#ffffff',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  contentContainer: {
+    paddingBottom: 40,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    paddingTop: 24,
+    paddingBottom: 32,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#e5e5ea',
+    backgroundColor: '#ffffff',
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 1,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1f2937',
-  },
-  signOutButton: {
-    backgroundColor: '#ef4444',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  signOutButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  profileSection: {
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-  },
-  email: {
-    fontSize: 18,
-    color: '#4b5563',
-    marginBottom: 8,
-  },
-  profileInfo: {
-    marginTop: 12,
-  },
-  university: {
-    fontSize: 16,
-    color: '#6366f1',
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  bio: {
-    fontSize: 14,
-    color: '#6b7280',
-  },
-  eventsSection: {
-    padding: 20,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1f2937',
+  profileImageContainer: {
     marginBottom: 16,
   },
-  eventCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
+  profileImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
   },
-  expiredCard: {
-    opacity: 0.6,
+  profileImagePlaceholder: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#f2f2f7',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#e5e5ea',
+  },
+  username: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#000000',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  bio: {
+    fontSize: 15,
+    color: '#3c3c43',
+    marginBottom: 20,
+    textAlign: 'center',
+    maxWidth: '80%',
+  },
+  editProfileButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 18,
+    backgroundColor: '#f2f2f7',
+  },
+  editProfileButtonText: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#007AFF',
+  },
+  section: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    marginHorizontal: 16,
+    marginBottom: 20,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#e5e5ea',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#e5e5ea',
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#000000',
+    flex: 1,
+  },
+  loader: {
+    padding: 30,
+  },
+  emptyStateContainer: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  emptyStateIcon: {
+    marginBottom: 12,
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  emptyStateText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#8e8e93',
+    textAlign: 'center',
+  },
+  eventCard: {
+    padding: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#e5e5ea',
+    backgroundColor: '#ffffff',
   },
   eventTitle: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '600',
-    color: '#1f2937',
+    color: '#000000',
     marginBottom: 8,
   },
   eventDescription: {
     fontSize: 14,
-    color: '#6b7280',
+    color: '#3c3c43',
     marginBottom: 12,
   },
-  eventFooter: {
+  eventMeta: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  eventCategory: {
-    fontSize: 12,
-    color: '#6366f1',
-    fontWeight: '600',
-    backgroundColor: '#e0e7ff',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
   },
   eventDate: {
-    fontSize: 12,
-    color: '#6b7280',
+    fontSize: 13,
+    color: '#8e8e93',
   },
-  noEventsText: {
-    fontSize: 16,
-    color: '#6b7280',
-    textAlign: 'center',
-    marginTop: 20,
+  eventLocation: {
+    fontSize: 13,
+    color: '#8e8e93',
+  },
+  expiredCard: {
+    opacity: 0.7,
+    borderColor: '#e5e5ea',
+  },
+  signOutButton: {
+    marginHorizontal: 16,
+    marginTop: 8,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  signOutButtonText: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#ff3b30', // iOS red color for destructive actions
   },
 }); 

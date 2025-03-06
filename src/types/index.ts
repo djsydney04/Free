@@ -13,6 +13,7 @@ export interface FreeEvent {
     latitude: number;
     longitude: number;
     address?: string;
+    buildingName?: string;
   };
   category: 'FOOD' | 'CONCERT' | 'SPORTS' | 'ACADEMIC' | 'OTHER';
   start_date: string;
@@ -21,6 +22,7 @@ export interface FreeEvent {
   images?: string[];
   created_at: string;
   university?: string;
+  participants?: string[];
 }
 
 export interface UserProfile {
@@ -30,4 +32,5 @@ export interface UserProfile {
   bio?: string;
   interests?: string[];
   created_at: string;
+  profileImage?: string;
 } 

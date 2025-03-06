@@ -11,6 +11,7 @@ import {
   Alert,
   SafeAreaView,
   ScrollView,
+  StatusBar,
 } from 'react-native';
 import MapView, { Marker, Circle, PROVIDER_DEFAULT, Callout } from 'react-native-maps';
 import * as Location from 'expo-location';
@@ -48,13 +49,13 @@ export default function MapScreen({ navigation }: MainTabScreenProps<'Map'>) {
       const location = await Location.getCurrentPositionAsync({});
       setUserLocation(location);
 
-      // Move map to user's location
+      // Move map to user's location with more zoom
       if (mapRef.current) {
         mapRef.current.animateToRegion({
           latitude: location.coords.latitude,
           longitude: location.coords.longitude,
-          latitudeDelta: 0.0922,
-          longitudeDelta: 0.0421,
+          latitudeDelta: 0.01, // More zoomed in (smaller value = more zoom)
+          longitudeDelta: 0.01, // More zoomed in
         });
       }
     } catch (error) {
@@ -218,6 +219,14 @@ export default function MapScreen({ navigation }: MainTabScreenProps<'Map'>) {
     }
   };
 
+  const getLocationDisplayName = (event: FreeEvent) => {
+    if (!event.location) return 'Location not specified';
+    
+    return event.location.buildingName ? 
+      event.location.buildingName + (event.location.address ? ` (${event.location.address})` : '') : 
+      event.location.address || 'Location coordinates only';
+  };
+
   const renderSearchModal = () => (
     <Modal
       animationType="slide"
@@ -319,65 +328,87 @@ export default function MapScreen({ navigation }: MainTabScreenProps<'Map'>) {
   );
 
   return (
-    <View style={styles.container}>
-      <MapView
-        ref={mapRef}
-        style={styles.map}
-        provider={PROVIDER_DEFAULT}
-        initialRegion={INITIAL_REGION}
-        showsUserLocation
-        showsMyLocationButton
-      >
-        {userLocation && (
-          <Circle
-            center={{
-              latitude: userLocation.coords.latitude,
-              longitude: userLocation.coords.longitude,
-            }}
-            radius={searchRadius * 1000}
-            strokeWidth={1}
-            strokeColor="#6366f1"
-            fillColor="rgba(99, 102, 241, 0.1)"
-          />
-        )}
-        {events.map((event) => (
-          <Marker
-            key={event.id}
-            coordinate={{
-              latitude: event.location.latitude,
-              longitude: event.location.longitude,
-            }}
-          >
-            <View style={[styles.customMarker, { backgroundColor: getMarkerColor(event.category) }]}>
-              <Ionicons name={getMarkerIcon(event.category)} size={16} color="#fff" />
-            </View>
-            <Callout tooltip>
-              <View style={styles.calloutContainer}>
-                <Text style={styles.calloutTitle}>{event.title}</Text>
-                <Text style={styles.calloutCategory}>{event.category}</Text>
-                <Text style={styles.calloutDate}>
-                  {new Date(event.start_date).toLocaleDateString()}
-                </Text>
-                <Text style={styles.calloutDescription} numberOfLines={3}>
-                  {event.description}
-                </Text>
-                <Text style={styles.calloutTap}>Tap to view more</Text>
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" />
+      
+      <View style={styles.mapContainer}>
+        <MapView
+          ref={mapRef}
+          style={styles.map}
+          initialRegion={{
+            latitude: 40.7128,
+            longitude: -74.0060,
+            latitudeDelta: 0.01, // More zoomed in
+            longitudeDelta: 0.01, // More zoomed in
+          }}
+          showsUserLocation
+          showsMyLocationButton={false}
+        >
+          {userLocation && (
+            <Circle
+              center={{
+                latitude: userLocation.coords.latitude,
+                longitude: userLocation.coords.longitude,
+              }}
+              radius={searchRadius * 1000}
+              strokeWidth={1}
+              strokeColor="#6366f1"
+              fillColor="rgba(99, 102, 241, 0.1)"
+            />
+          )}
+          {events.map((event) => (
+            <Marker
+              key={event.id}
+              coordinate={{
+                latitude: event.location.latitude,
+                longitude: event.location.longitude,
+              }}
+            >
+              <View style={[styles.customMarker, { backgroundColor: getMarkerColor(event.category) }]}>
+                <Ionicons name={getMarkerIcon(event.category)} size={16} color="#fff" />
               </View>
-            </Callout>
-          </Marker>
-        ))}
-      </MapView>
+              <Callout tooltip>
+                <View style={styles.calloutContainer}>
+                  <Text style={styles.calloutTitle}>{event.title}</Text>
+                  <Text style={styles.calloutCategory}>{event.category}</Text>
+                  <Text style={styles.calloutDate}>
+                    {new Date(event.start_date).toLocaleDateString()}
+                  </Text>
+                  <Text style={styles.calloutLocation} numberOfLines={2}>
+                    {getLocationDisplayName(event)}
+                  </Text>
+                  <Text style={styles.calloutDescription} numberOfLines={3}>
+                    {event.description}
+                  </Text>
+                  <Text style={styles.calloutTap}>Tap to view more</Text>
+                </View>
+              </Callout>
+            </Marker>
+          ))}
+        </MapView>
 
-      <TouchableOpacity 
-        style={styles.searchButton}
-        onPress={() => setSearchModalVisible(true)}
-      >
-        <Ionicons name="search" size={24} color="#fff" />
-      </TouchableOpacity>
+        <TouchableOpacity 
+          style={styles.recenterButton}
+          onPress={getLocation}
+          accessibilityLabel="Recenter map to my location"
+          accessibilityHint="Double tap to recenter the map on your current location"
+        >
+          <Ionicons name="locate" size={24} color="#007AFF" />
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.searchButton}
+          onPress={() => setSearchModalVisible(true)}
+          accessibilityLabel="Search locations"
+          accessibilityHint="Double tap to search for locations"
+        >
+          <Ionicons name="search" size={24} color="#fff" />
+        </TouchableOpacity>
+      </View>
       
       {renderSearchModal()}
       {renderCustomLocationModal()}
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -385,6 +416,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
+  },
+  mapContainer: {
+    flex: 1,
   },
   map: {
     width: Dimensions.get('window').width,
@@ -447,7 +481,13 @@ const styles = StyleSheet.create({
   calloutDate: {
     fontSize: 12,
     color: '#6b7280',
+    marginBottom: 4,
+  },
+  calloutLocation: {
+    fontSize: 12,
+    color: '#6b7280',
     marginBottom: 8,
+    fontStyle: 'italic',
   },
   calloutDescription: {
     fontSize: 13,
@@ -546,5 +586,21 @@ const styles = StyleSheet.create({
     color: '#6366f1',
     fontSize: 15,
     fontWeight: '500',
+  },
+  recenterButton: {
+    position: 'absolute',
+    bottom: 90, // Above the search button
+    right: 16,
+    backgroundColor: '#fff',
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
 }); 
