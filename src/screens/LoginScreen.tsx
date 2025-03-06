@@ -81,93 +81,13 @@ export default function LoginScreen({ navigation }: RootStackScreenProps<'Login'
     }
   };
 
-  // Helper function to create demo account
-  const createTestAccount = async () => {
-    setLoading(true);
-    setErrorMessage('');
-    try {
-      const testEmail = 'demo@example.com';
-      const testPassword = 'Demo123!';
-      
-      // First check if the user already exists
-      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-        email: testEmail,
-        password: testPassword,
-      });
-      
-      if (!signInError && signInData.user) {
-        // User exists, login successful
-        console.log('Demo login successful with existing account');
-        return;
-      }
-      
-      console.log('Creating new demo account...');
-      
-      // User doesn't exist, create a new one
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email: testEmail,
-        password: testPassword,
-        options: {
-          // Auto-confirm the email for demo accounts
-          data: {
-            university: 'Demo University',
-          }
-        }
-      });
-
-      if (signUpError) {
-        console.error('Error creating demo account:', signUpError);
-        throw signUpError;
-      }
-      
-      if (!signUpData.user) {
-        throw new Error('Failed to create demo account');
-      }
-      
-      console.log('Demo account created successfully');
-      
-      // Create profile with university info
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert([
-          {
-            user_id: signUpData.user.id,
-            university: 'Demo University',
-            created_at: new Date().toISOString(),
-          },
-        ]);
-        
-      if (profileError) {
-        console.error('Error creating demo profile:', profileError);
-      }
-        
-      // Now sign in with the created account
-      const { error: finalLoginError } = await supabase.auth.signInWithPassword({
-        email: testEmail,
-        password: testPassword,
-      });
-      
-      if (finalLoginError) {
-        throw finalLoginError;
-      }
-      
-      console.log('Demo login successful with new account');
-      
-    } catch (error: any) {
-      setErrorMessage('Could not create demo account: ' + error.message);
-      console.error('Demo account error:', error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
       <View style={styles.content}>
-        <Text style={styles.title}>FreeV2</Text>
+        <Text style={styles.title}>Free</Text>
         <Text style={styles.subtitle}>Find Free Events Near You</Text>
 
         {errorMessage ? (
@@ -237,20 +157,6 @@ export default function LoginScreen({ navigation }: RootStackScreenProps<'Login'
           <Text style={styles.linkText}>
             Forgot your password?
           </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={styles.demoButton}
-          onPress={createTestAccount}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color="#6366f1" />
-          ) : (
-            <Text style={styles.demoButtonText}>
-              Try Demo Account
-            </Text>
-          )}
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
@@ -328,19 +234,5 @@ const styles = StyleSheet.create({
   linkText: {
     color: '#6366f1',
     fontSize: 16,
-  },
-  demoButton: {
-    backgroundColor: '#e0e7ff',
-    padding: 15,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginTop: 20,
-    borderWidth: 1,
-    borderColor: '#c7d2fe',
-  },
-  demoButtonText: {
-    color: '#6366f1',
-    fontSize: 16,
-    fontWeight: '600',
   },
 }); 

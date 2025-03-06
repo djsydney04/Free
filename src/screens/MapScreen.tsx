@@ -32,8 +32,6 @@ export default function MapScreen({ navigation }: MainTabScreenProps<'Map'>) {
   const [events, setEvents] = useState<FreeEvent[]>([]);
   const [userLocation, setUserLocation] = useState<Location.LocationObject | null>(null);
   const [searchRadius, setSearchRadius] = useState(10); // 10km default but not displayed to user
-  const [searchModalVisible, setSearchModalVisible] = useState(false);
-  const [searchAddress, setSearchAddress] = useState('');
   const [customLocationModalVisible, setCustomLocationModalVisible] = useState(false);
   const [customLatitude, setCustomLatitude] = useState('');
   const [customLongitude, setCustomLongitude] = useState('');
@@ -105,52 +103,6 @@ export default function MapScreen({ navigation }: MainTabScreenProps<'Map'>) {
     }, [userLocation, searchRadius])
   );
 
-  const searchLocation = async () => {
-    if (!searchAddress.trim()) {
-      Alert.alert('Error', 'Please enter an address to search');
-      return;
-    }
-
-    try {
-      const results = await Location.geocodeAsync(searchAddress);
-      if (results.length > 0) {
-        const { latitude, longitude } = results[0];
-        
-        // Update user location
-        setUserLocation({
-          coords: {
-            latitude,
-            longitude,
-            altitude: null,
-            accuracy: null,
-            altitudeAccuracy: null,
-            heading: null,
-            speed: null
-          },
-          timestamp: Date.now()
-        });
-        
-        // Move map to searched location
-        if (mapRef.current) {
-          mapRef.current.animateToRegion({
-            latitude,
-            longitude,
-            latitudeDelta: 0.0922,
-            longitudeDelta: 0.0421,
-          });
-        }
-        
-        setSearchModalVisible(false);
-        setSearchAddress('');
-      } else {
-        Alert.alert('Error', 'No results found for this address');
-      }
-    } catch (error) {
-      console.error('Error searching location:', error);
-      Alert.alert('Error', 'Could not find the specified location');
-    }
-  };
-  
   const setCustomLocation = () => {
     const lat = parseFloat(customLatitude);
     const lng = parseFloat(customLongitude);
@@ -227,58 +179,6 @@ export default function MapScreen({ navigation }: MainTabScreenProps<'Map'>) {
       event.location.address || 'Location coordinates only';
   };
 
-  const renderSearchModal = () => (
-    <Modal
-      animationType="slide"
-      transparent={true}
-      visible={searchModalVisible}
-      onRequestClose={() => setSearchModalVisible(false)}
-    >
-      <SafeAreaView style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Search Location</Text>
-            <TouchableOpacity 
-              onPress={() => setSearchModalVisible(false)}
-              style={styles.modalCloseButton}
-            >
-              <Ionicons name="close" size={24} color="#6b7280" />
-            </TouchableOpacity>
-          </View>
-          
-          <View style={styles.searchInputContainer}>
-            <Ionicons name="search" size={20} color="#6b7280" style={styles.searchIcon} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Enter an address, city, or place"
-              value={searchAddress}
-              onChangeText={setSearchAddress}
-              returnKeyType="search"
-              onSubmitEditing={searchLocation}
-            />
-          </View>
-          
-          <TouchableOpacity
-            style={styles.primaryButton}
-            onPress={searchLocation}
-          >
-            <Text style={styles.primaryButtonText}>Search</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={styles.secondaryButton}
-            onPress={() => {
-              setSearchModalVisible(false);
-              setCustomLocationModalVisible(true);
-            }}
-          >
-            <Text style={styles.secondaryButtonText}>Enter Custom Coordinates</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    </Modal>
-  );
-  
   const renderCustomLocationModal = () => (
     <Modal
       animationType="slide"
@@ -330,6 +230,10 @@ export default function MapScreen({ navigation }: MainTabScreenProps<'Map'>) {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
+      
+      <View style={styles.titleContainer}>
+        <Text style={styles.title}>Events</Text>
+      </View>
       
       <View style={styles.mapContainer}>
         <MapView
@@ -393,20 +297,10 @@ export default function MapScreen({ navigation }: MainTabScreenProps<'Map'>) {
           accessibilityLabel="Recenter map to my location"
           accessibilityHint="Double tap to recenter the map on your current location"
         >
-          <Ionicons name="locate" size={24} color="#007AFF" />
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={styles.searchButton}
-          onPress={() => setSearchModalVisible(true)}
-          accessibilityLabel="Search locations"
-          accessibilityHint="Double tap to search for locations"
-        >
-          <Ionicons name="search" size={24} color="#fff" />
+          <Ionicons name="navigate" size={22} color="#007AFF" />
         </TouchableOpacity>
       </View>
       
-      {renderSearchModal()}
       {renderCustomLocationModal()}
     </SafeAreaView>
   );
@@ -417,28 +311,27 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
+  titleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#e5e5ea',
+  },
+  title: {
+    fontSize: 34,
+    fontWeight: '700',
+    color: '#000000',
+  },
   mapContainer: {
     flex: 1,
   },
   map: {
     width: Dimensions.get('window').width,
     height: Dimensions.get('window').height,
-  },
-  searchButton: {
-    position: 'absolute',
-    top: 50,
-    right: 16,
-    backgroundColor: '#6366f1',
-    borderRadius: 30,
-    width: 50,
-    height: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 5,
   },
   customMarker: {
     width: 35,
@@ -589,12 +482,12 @@ const styles = StyleSheet.create({
   },
   recenterButton: {
     position: 'absolute',
-    bottom: 90, // Above the search button
+    bottom: 40, // Moved down
     right: 16,
-    backgroundColor: '#fff',
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    backgroundColor: '#ffffff',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
@@ -602,5 +495,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
+    borderColor: '#e0e0e0',
+    borderWidth: 0.5,
   },
 }); 

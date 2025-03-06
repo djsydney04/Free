@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "FreeV2",
-    "slug": "FreeV2",
+    "name": "Free",
+    "slug": "Free",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
