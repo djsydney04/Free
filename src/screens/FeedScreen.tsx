@@ -28,7 +28,7 @@ import { format } from 'date-fns';
 
 const CATEGORIES = ['ALL', 'FOOD', 'CONCERT', 'SPORTS', 'ACADEMIC', 'OTHER'] as const;
 const SORT_OPTIONS = ['RECENT', 'POPULAR', 'NEARBY'] as const;
-const DISTANCE_OPTIONS = [0.5, 1, 2, 5, 10] as const; // miles
+const DISTANCE_OPTIONS = [0.5, 1, 2, 5] as const; // maximum 5 miles
 const { width } = Dimensions.get('window');
 
 export default function FeedScreen({ navigation }: MainTabScreenProps<'Feed'>) {
@@ -162,8 +162,8 @@ export default function FeedScreen({ navigation }: MainTabScreenProps<'Feed'>) {
         filtered = filtered.filter(event => event.category === selectedCategory);
       }
       
-      // Then filter by distance if applicable
-      if (userLocation && selectedSortOption === 'NEARBY') {
+      // Apply distance filtering only when not in NEARBY mode
+      if (userLocation && selectedSortOption !== 'NEARBY') {
         filtered = filtered.filter(event => {
           if (!event.location || typeof event.location.latitude !== 'number' || typeof event.location.longitude !== 'number') {
             return false;
@@ -177,6 +177,13 @@ export default function FeedScreen({ navigation }: MainTabScreenProps<'Feed'>) {
           );
           
           return distance <= selectedDistance;
+        });
+      } else if (userLocation && selectedSortOption === 'NEARBY') {
+        // For NEARBY, just filter out events without location data
+        filtered = filtered.filter(event => {
+          return event.location && 
+                 typeof event.location.latitude === 'number' && 
+                 typeof event.location.longitude === 'number';
         });
       }
       
@@ -593,7 +600,7 @@ export default function FeedScreen({ navigation }: MainTabScreenProps<'Feed'>) {
       case 'POPULAR':
         return 'Most Popular';
       case 'NEARBY':
-        return `Within ${selectedDistance} {selectedDistance === 1 ? 'mile' : 'miles'}`;
+        return 'Nearest to Me';
     }
   };
 
@@ -631,6 +638,20 @@ export default function FeedScreen({ navigation }: MainTabScreenProps<'Feed'>) {
       </View>
     </View>
   );
+
+  // Add function to get sort icon name
+  const getSortIconName = (option: typeof SORT_OPTIONS[number]) => {
+    switch (option) {
+      case 'RECENT':
+        return 'time-outline';
+      case 'POPULAR':
+        return 'flame-outline';
+      case 'NEARBY':
+        return 'navigate-outline';
+      default:
+        return 'time-outline';
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -697,51 +718,54 @@ export default function FeedScreen({ navigation }: MainTabScreenProps<'Feed'>) {
         
         <View style={styles.sortFilterContainer}>
           <TouchableOpacity
-            style={styles.sortButton}
+            style={styles.pillFilter}
             onPress={() => {
               setShowSortOptions(!showSortOptions);
-              setShowDistanceOptions(false);
             }}
             accessibilityLabel="Sort events"
             accessibilityHint="Double tap to change sort order"
           >
-            <Text style={styles.sortButtonText}>{getSortLabel()}</Text>
+            <Ionicons 
+              name={getSortIconName(selectedSortOption)} 
+              size={18} 
+              color="#007AFF"
+              style={styles.pillFilterIcon} 
+            />
+            <Text style={styles.pillFilterText}>{getSortLabel()}</Text>
             <Ionicons 
               name={showSortOptions ? "chevron-up" : "chevron-down"} 
-              size={16} 
+              size={14} 
               color="#007AFF" 
             />
           </TouchableOpacity>
           
-          <TouchableOpacity
-            style={styles.filterButton}
-            onPress={() => {
-              setShowDistanceOptions(!showDistanceOptions);
-              setShowSortOptions(false);
-            }}
-            accessibilityLabel="Filter by distance"
-            accessibilityHint="Double tap to filter events by distance"
-          >
-            <Text style={styles.filterButtonText}>
-              {selectedDistance === 0.5 ? 'Any Distance' : `${selectedDistance} miles`}
-            </Text>
-            <Ionicons 
-              name={showDistanceOptions ? "chevron-up" : "chevron-down"} 
-              size={16} 
-              color="#007AFF" 
-            />
-          </TouchableOpacity>
+          {/* Radius filter pill - show on all pages EXCEPT when NEARBY is selected */}
+          {selectedSortOption !== 'NEARBY' && (
+            <TouchableOpacity
+              style={styles.pillFilter}
+              onPress={() => {
+                // Toggle between 1, 2, and 5 miles
+                setSelectedDistance(selectedDistance === 1 ? 2 : 
+                                    selectedDistance === 2 ? 5 : 1);
+                getUserLocation();
+              }}
+              accessibilityLabel="Distance radius"
+              accessibilityHint="Double tap to change radius distance"
+            >
+              <Ionicons 
+                name="radio-outline" 
+                size={18} 
+                color="#007AFF"
+                style={styles.pillFilterIcon} 
+              />
+              <Text style={styles.pillFilterText}>{selectedDistance} miles</Text>
+            </TouchableOpacity>
+          )}
         </View>
         
         {showSortOptions && (
           <View style={styles.optionsContainer}>
             {SORT_OPTIONS.map((option) => renderSortOption(option))}
-          </View>
-        )}
-        
-        {showDistanceOptions && (
-          <View style={styles.optionsContainer}>
-            {DISTANCE_OPTIONS.map((distance) => renderDistanceOption(distance))}
           </View>
         )}
       </View>
@@ -756,6 +780,7 @@ export default function FeedScreen({ navigation }: MainTabScreenProps<'Feed'>) {
         }
         ListEmptyComponent={renderEmptyState}
         showsVerticalScrollIndicator={false}
+        ListHeaderComponent={null}
       />
       
       {showSearchModal && (
@@ -850,21 +875,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
-  sortButton: {
+  pillFilter: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#f2f2f7',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 18,
+    marginRight: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
-  sortButtonText: {
+  pillFilterIcon: {
+    marginRight: 6,
+  },
+  pillFilterText: {
     fontSize: 15,
-    color: '#007AFF',
-    marginRight: 4,
-  },
-  filterButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  filterButtonText: {
-    fontSize: 15,
+    fontWeight: '500',
     color: '#007AFF',
     marginRight: 4,
   },
